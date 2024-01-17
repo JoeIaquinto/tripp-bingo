@@ -24,6 +24,15 @@ model BingoSquare {
     @@index([content])
 }
 
+model BingoState {
+    id        Int      @id @default(autoincrement())
+    state     Boolean
+    message   String
+    winner    String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
 // Necessary for Next auth
 model Account {
     id                String  @id @default(cuid())

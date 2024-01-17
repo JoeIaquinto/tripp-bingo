@@ -13,7 +13,7 @@ export default async function Home() {
     <main className="">
       <div className="flex flex-row items-center">
         <h1 className="flex-grow text-4xl font-bold text-center">Tripp Tracy Bingo</h1>
-        <div className="self-center">
+        <div className="self-center flex-grow-0">
           <Link
             href={session ? "/api/auth/signout" : "/api/auth/signin"}
             className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
