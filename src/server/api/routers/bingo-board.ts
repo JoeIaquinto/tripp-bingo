@@ -5,7 +5,6 @@ import {
   adminProcedure,
   createTRPCRouter,
   protectedProcedure,
-  publicProcedure,
 } from "~/server/api/trpc";
 
 export const bingoBoardRouter = createTRPCRouter({
@@ -105,7 +104,7 @@ function getBingoSquares(data: {isActive: boolean}[]) {
     [0, 6, 12, 18, 24],
     [4, 8, 12, 16, 20]
   ];
-  let indexesInBingo: number[] = [];
+  const indexesInBingo: number[] = [];
   lines.forEach(line => {
     const [b, i, n, g, o] = line;
     if (data[b!]!.isActive && data[i!]!.isActive && data[n!]!.isActive && data[g!]!.isActive && data[o!]!.isActive) {
