@@ -3,7 +3,6 @@
 import { SessionProvider, useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
 import { Button } from "../_components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../_components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "../_components/ui/alert-dialog";
 import { Input } from "../_components/ui/input";;
 import { Switch } from "../_components/ui/switch";
@@ -17,7 +16,7 @@ import { Form,
   FormMessage } from "../_components/ui/form";
 import { ColumnDef } from "@tanstack/react-table"
 import { DataTable } from "../_components/ui/data-table";
-import { ArrowUpDown, MoreHorizontal } from "lucide-react"
+import { ArrowUpDown } from "lucide-react"
 
 type Square = {
   id: number;

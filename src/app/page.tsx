@@ -2,7 +2,6 @@ import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 
 import { getServerAuthSession } from "~/server/auth";
-import { api } from "~/trpc/server";
 import GetBoard from "./_components/get-board";
 
 export default async function Home() {

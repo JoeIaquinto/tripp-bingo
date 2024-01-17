@@ -2,7 +2,7 @@
 import { api } from "~/trpc/react";
 
 export default function GetBoard() {
-  const {data, isFetching, error, status} = api.bingoBoard.getRandomSquares.useQuery(undefined, {
+  const {data, isFetching, error} = api.bingoBoard.getRandomSquares.useQuery(undefined, {
     refetchInterval: 15000,
     refetchOnMount: false,
   });
