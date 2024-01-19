@@ -36,7 +36,7 @@ function PlayerOverview({ users } : { users: { name: string | null; hasBingo: bo
               >
                 {user.hasBingo ? <span className="text-accent-foreground">🎉 Bingo! - </span> : null}
                 <span>{user.name}</span>
-                <span>({user.squaresActive} square{user.squaresActive !== 1 ? 's' : ''} active)</span>
+                {/* <span>({user.squaresActive} square{user.squaresActive !== 1 ? 's' : ''} active)</span> */}
               </div>
             );
           })}
