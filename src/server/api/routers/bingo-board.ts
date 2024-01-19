@@ -70,7 +70,7 @@ export const bingoSquaresRouter = createTRPCRouter({
         }
       },
     });
-
+    
     const winners = userSquares.map(userSquare => {
       const squaresInBingo = getBingoSquares(userSquare.userBingoGame.squares.map(x => x.bingoSquare.isActive))
       if (squaresInBingo.length) {
@@ -79,18 +79,21 @@ export const bingoSquaresRouter = createTRPCRouter({
           squares: userSquare.userBingoGame.squares.filter(x => squaresInBingo.includes(x.id)),
         }
       }
-    });
-
-    await ctx.db.userBingoGame.updateMany({
-      data: {
-        hasBingo: true,
-      },
-      where: {
-        id: {
-          in: winners.map(x => x!.id)
+      return null;
+    }).filter(x => x !== null);
+    
+    if(winners.length) {
+      await ctx.db.userBingoGame.updateMany({
+        data: {
+          hasBingo: true,
+        },
+        where: {
+          id: {
+            in: winners.map(x => x!.id)
+          }
         }
-      }
-    })
+      })
+    }
 
     return square;
   }),
