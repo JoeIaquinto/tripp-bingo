@@ -2,7 +2,7 @@
 
 import { api } from "~/trpc/react"
 import { Button } from "./_components/ui/button"
-import { redirect, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function JoinButton({ gameId } : { gameId: number }) {
 

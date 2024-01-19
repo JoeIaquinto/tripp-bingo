@@ -1,7 +1,7 @@
 'use client'
 
 import { ColumnDef } from "@tanstack/react-table";
-import { Square, ArrowUpDown } from "lucide-react";
+import { ArrowUpDown } from "lucide-react";
 import { Button } from "../../_components/ui/button";
 import { Switch } from "../../_components/ui/switch";
 import { activateSquare, deactivateSquare } from "./actions";
@@ -34,9 +34,9 @@ export const columns: ColumnDef<Square>[] = [
       return (
         <Switch defaultChecked={row.original.isActive} onCheckedChange={async (e) => {
           if (e.valueOf()) {
-            activateSquare(row.original.id)
+            await activateSquare(row.original.id)
           } else {
-            deactivateSquare(row.original.id)
+            await deactivateSquare(row.original.id)
           }
         }} />
       );

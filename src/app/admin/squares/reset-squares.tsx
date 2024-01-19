@@ -19,7 +19,7 @@ export default function ResetSquaresDialog() {
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={() => {
             startTransition(() => {
-              resetSquareStates();
+              resetSquareStates().catch(console.error);
             })
           }}>Reset All</AlertDialogAction>
         </AlertDialogFooter>

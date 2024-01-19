@@ -135,7 +135,3 @@ export function getBingoSquares(data: boolean[]) {
   });
   return indexesInBingo;
 }
-
-function getBingoWinnerMessage(userName: string, bingoSquares: number[], randomSquares: {content: string}[]) {
-  return `${userName} has won bingo! They got ${bingoSquares.map(x => randomSquares[x]!.content).join(", ")}`;
-}
