@@ -28,10 +28,10 @@ function PlayerOverview({ users } : { users: { name: string | null; hasBingo: bo
     <div className="px-2">
       <div className="container rounded-sm border space-y-2">
         <h2 className="text-primary text-lg">{users.length} Player{users.length > 1 ? 's' : ''}</h2>
-        <div>
+        <div className="space-y-2 pb-2">
           {usersBySquares.map(user => {
             return (
-              <div className="flex-row justify-items-start px-2 py-1 rounded-sm bg-primary/10 space-x-2 last:mb-2"
+              <div className="flex-row justify-items-start px-2 py-1 rounded-sm bg-primary/10 space-x-2"
                 key={user.name}
               >
                 {user.hasBingo ? <span className="text-accent-foreground">🎉 Bingo! - </span> : null}
