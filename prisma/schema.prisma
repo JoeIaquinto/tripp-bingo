@@ -22,16 +22,45 @@ model BingoSquare {
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
+    bingoUserSquares UserBingoGameSquare[]
+
     @@index([content])
 }
 
-model BingoState {
-    id        Int      @id @default(autoincrement())
-    state     Boolean
-    message   String
-    winner    String
+model BingoGame {
+    id       Int @id @default(autoincrement())
+    title    String
+
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
+    userBingoGames    UserBingoGame[]
+}
+
+model UserBingoGame {
+    id        Int      @id @default(autoincrement())
+    bingoGameId    Int
+    userId    String
+    hasBingo Boolean @default(false)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    squares   UserBingoGameSquare[]
+    user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    bingoGame BingoGame @relation(fields: [bingoGameId], references: [id], onDelete: Cascade)
+    @@unique([userId, bingoGameId])
+}
+
+model UserBingoGameSquare {
+    id        Int      @id @default(autoincrement())
+    userBingoGameId    Int
+    bingoSquareId    Int
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    userBingoGame UserBingoGame @relation(fields: [userBingoGameId], references: [id], onDelete: Cascade)
+    bingoSquare BingoSquare @relation(fields: [bingoSquareId], references: [id], onDelete: Cascade)
+    @@unique([userBingoGameId, bingoSquareId])
 }
 
 // Necessary for Next auth
@@ -70,6 +99,7 @@ model User {
     role          String?
     accounts      Account[]
     sessions      Session[]
+    userBingoGames UserBingoGame[]
 }
 
 model VerificationToken {

@@ -1,50 +1,17 @@
 import { z } from "zod";
-import gen from "random-seed";
 
 import {
   adminProcedure,
   createTRPCRouter,
-  protectedProcedure,
 } from "~/server/api/trpc";
 
-export const bingoBoardRouter = createTRPCRouter({
-  getRandomSquares: protectedProcedure.query(async ({ ctx }) => {
-    // generate a hash using the user's id and the current date in utc
-    const hash = ctx.session.user.id + new Date().getDate();
-    const squares = await ctx.db.bingoSquare.findMany();
-    const randomSquares: {
-        id: number;
-        content: string;
-        isActive: boolean;
-        inBingo: boolean;
-    }[] = [];
-    const seeded = gen.create(hash);
-    // populate the set with 25 random squares using the hash to make the random selection deterministic
-    while (randomSquares.length < 25) {
-        const randomSquare = squares[seeded.intBetween(0, squares.length - 1)];
-        if (randomSquares.some(x => x.id === randomSquare!.id)) continue;
-        randomSquares.push({...randomSquare!, inBingo: false});
-    }
-
-    const bingoSquares = getBingoSquares(randomSquares);
-    if (bingoSquares.length !== 0) {
-      await ctx.db.bingoState.update({
-        where: { id: 1 },
-        data: { state: true, message: getBingoWinnerMessage(ctx.session.user.name!, bingoSquares, randomSquares), winner: ctx.session.user.name! },
-      
-      })
-    }
-    return randomSquares.map((x, index) => {
-      return {...x, inBingo: bingoSquares.includes(index)};
-    });
-  }),
-
+export const bingoSquaresRouter = createTRPCRouter({
   list: adminProcedure.query(async ({ ctx }) => {
     const squares = await ctx.db.bingoSquare.findMany();
     return squares;
   }),
 
-  createSquare: adminProcedure.input(
+  create: adminProcedure.input(
     z.object({
       content: z.string(),
     }),
@@ -55,12 +22,12 @@ export const bingoBoardRouter = createTRPCRouter({
     return square;
   }),
 
-  updateSquare: adminProcedure.input(
-    z.object({id: z.number(), content: z.string(), isActive: z.boolean()}),
+  updateContent: adminProcedure.input(
+    z.object({id: z.number(), content: z.string()}),
   ).mutation(async ({ ctx, input }) => {
     const square = await ctx.db.bingoSquare.update({
       where: { id: input.id },
-      data: { content: input.content, isActive: input.isActive },
+      data: { content: input.content },
     });
     return square;
   }),
@@ -70,6 +37,61 @@ export const bingoBoardRouter = createTRPCRouter({
       where: { id: input },
       data: { isActive: true },
     });
+
+    const userSquares = await ctx.db.userBingoGameSquare.findMany({
+      select: { 
+        userBingoGameId: true,
+        userBingoGame: {
+          select: {
+            squares: {
+              select: {
+                bingoSquare: {
+                  select: {
+                    isActive: true
+                  }
+                },
+                id: true,
+              },
+              orderBy: {
+                id: "asc"
+              }
+            },
+          }
+        }
+      },
+      where: { 
+        bingoSquareId: input, 
+        userBingoGame: {
+          bingoGame: {
+            createdAt: {
+              gte: new Date(Date.now() - 1000 * 60 * 60 * 12)
+            }
+          }
+        }
+      },
+    });
+
+    const winners = userSquares.map(userSquare => {
+      const squaresInBingo = getBingoSquares(userSquare.userBingoGame.squares.map(x => x.bingoSquare.isActive))
+      if (squaresInBingo.length) {
+        return {
+          id: userSquare.userBingoGameId,
+          squares: userSquare.userBingoGame.squares.filter(x => squaresInBingo.includes(x.id)),
+        }
+      }
+    });
+
+    await ctx.db.userBingoGame.updateMany({
+      data: {
+        hasBingo: true,
+      },
+      where: {
+        id: {
+          in: winners.map(x => x!.id)
+        }
+      }
+    })
+
     return square;
   }),
 
@@ -89,7 +111,7 @@ export const bingoBoardRouter = createTRPCRouter({
   }),
 });
 
-function getBingoSquares(data: {isActive: boolean}[]) {
+export function getBingoSquares(data: boolean[]) {
   const lines = [
     [0, 1, 2, 3, 4],
     [5, 6, 7, 8, 9],
@@ -107,7 +129,7 @@ function getBingoSquares(data: {isActive: boolean}[]) {
   const indexesInBingo: number[] = [];
   lines.forEach(line => {
     const [b, i, n, g, o] = line;
-    if (data[b!]!.isActive && data[i!]!.isActive && data[n!]!.isActive && data[g!]!.isActive && data[o!]!.isActive) {
+    if (data[b!]! && data[i!]! && data[n!]! && data[g!]! && data[o!]!) {
       indexesInBingo.push(b!, i!, n!, g!, o!);
     }
   });
