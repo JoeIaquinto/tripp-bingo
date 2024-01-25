@@ -7,12 +7,14 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "~/server/api/trpc";
-import { PrismaClient } from "@prisma/client";
+import { type PrismaClient } from "@prisma/client";
 import { getBingoSquares } from "./bingo-board";
+import { getBoxScore, getPlayByPlay } from "~/lib/nhl-api/get-scoreboard";
 
 export const gameRouter = createTRPCRouter({
   createGame: adminProcedure.input(z.object({
     title: z.string().max(100).min(1),
+    nhlGameId: z.string(),
   })).mutation(async ({ ctx, input }) => {
     const game = await ctx.db.bingoGame.create({
       data: input,
@@ -179,6 +181,30 @@ export const gameRouter = createTRPCRouter({
         }
       })
     };
+  }),
+
+  getBoxScore: protectedProcedure.input(z.object({id: z.number()})).query(async ({ ctx, input }) => {
+    const game = await ctx.db.bingoGame.findFirst({ where: { id: input.id } });
+    if (!game) {
+      throw new Error("Game not found");
+    }
+    const boxScore = await getBoxScore(game.nhlGameId);
+    if (!boxScore) {
+      throw new Error("Box score not found");
+    }
+    return boxScore;
+  }),
+
+  getPlayByPlay: protectedProcedure.input(z.object({id: z.number()})).query(async ({ ctx, input }) => {
+    const game = await ctx.db.bingoGame.findFirst({ where: { id: input.id } });
+    if (!game) {
+      throw new Error("Game not found");
+    }
+    const playByPlay = await getPlayByPlay(game.nhlGameId);
+    if (!playByPlay) {
+      throw new Error("Play By Play not found");
+    }
+    return playByPlay;
   }),
 
 });

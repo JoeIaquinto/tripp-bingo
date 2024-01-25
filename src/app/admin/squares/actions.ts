@@ -39,6 +39,7 @@ export async function updateSquare(row: { id: number, content: string, isActive:
 
 export async function activateSquare(id: number) {
   'use server'
+  console.log('activateSquare', id);
   await api.bingoSquares.activateSquare.mutate(id);
 }
 

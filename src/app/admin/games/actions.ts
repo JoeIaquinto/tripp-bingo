@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { db } from "~/server/db";
 
-export async function createGame(title: string) {
+export async function createGame(title: string, nhlGameId: string) {
   'use server'
   await db.bingoGame.create({
     data: {
-      title
+      title,
+      nhlGameId,
     }
   });
   revalidatePath('/admin/games');

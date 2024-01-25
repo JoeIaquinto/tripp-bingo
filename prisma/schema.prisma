@@ -30,6 +30,7 @@ model BingoSquare {
 model BingoGame {
     id       Int @id @default(autoincrement())
     title    String
+    nhlGameId String @default("")
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt

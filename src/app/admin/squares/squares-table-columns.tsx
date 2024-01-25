@@ -1,6 +1,6 @@
 'use client'
 
-import { ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "../../_components/ui/button";
 import { Switch } from "../../_components/ui/switch";
