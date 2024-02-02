@@ -27,6 +27,13 @@ export default async function Header() {
               </Link>
             ) : null
           }
+          {
+            session ? (
+              <Link href="/game/create" className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20 text-sm md:text-md">
+                New Game
+              </Link>
+            ) : null
+          }
           <Link
             href={session ? "/api/auth/signout" : "/api/auth/signin"}
             className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20 text-sm md:text-md"

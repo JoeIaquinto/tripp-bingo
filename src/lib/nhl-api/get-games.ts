@@ -1,4 +1,4 @@
-import dayjs from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 
 const nowScoreboardUrl = "https://api-web.nhle.com/v1/scoreboard/now";
 
@@ -34,7 +34,7 @@ export interface GameInfo {
   puckDrop: string;
 }
 
-export const getGames = async (): Promise<GameInfo[]> => {
+export const getGames = async (day: Dayjs): Promise<GameInfo[]> => {
   const response = await fetch(nowScoreboardUrl, {
     next: {
       tags: ["nhl-api", "nhl-games"],
@@ -42,7 +42,7 @@ export const getGames = async (): Promise<GameInfo[]> => {
     },
   });
   const data = await response.json() as NowScoreboardResponse;
-  return data.gamesByDate.filter(x => x.date === dayjs().format('YYYY-MM-DD')).flatMap(x => {
+  return data.gamesByDate.filter(x => x.date === day.format('YYYY-MM-DD')).flatMap(x => {
     return x.games.map(game => {
       return {
         id: game.id.toString(),
@@ -52,5 +52,5 @@ export const getGames = async (): Promise<GameInfo[]> => {
         puckDrop: dayjs(game.startTimeUTC).format('h:mm A'),
       }
     })
-  });
+  }).sort((a, b) => a.puckDrop.localeCompare(b.puckDrop));
 }

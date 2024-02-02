@@ -3,43 +3,62 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "../../_components/ui/button";
-import { Switch } from "../../_components/ui/switch";
-import { activateSquare, deactivateSquare } from "./actions";
 
 export type Square = {
   id: number;
-  content: string;
-  isActive: boolean;
+  description: string;
+  baseGameCategory: {
+      id: string;
+      name: string;
+  };
+  skaterType: string;
+  stat: string;
+  rangeMin: number;
+  rangeMax: number;
+  displayFormat: string;
 }
 
 export const columns: ColumnDef<Square>[] = [
   {
-    accessorKey: "content",
+    accessorKey: "description",
     header: ({ column }) => {
       return (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Content
+          Description
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
     },
   },
   {
-    accessorKey: "isActive",
-    header: "Is Active",
-    cell: ({ row }) => {
-      return (
-        <Switch defaultChecked={row.original.isActive} onCheckedChange={async (e) => {
-          if (e.valueOf()) {
-            await activateSquare(row.original.id)
-          } else {
-            await deactivateSquare(row.original.id)
-          }
-        }} />
-      );
-    }
+    accessorKey: "baseGameCategory.name",
+    header: "Category",
+  },
+  {
+    accessorKey: "skaterType",
+    header: "Skater Type",
+  },
+  {
+    accessorKey: "stat",
+    header: "Stat",
+  },
+  {
+    accessorKey: "rangeMin",
+    header: "Range Min",
+  },
+  {
+    accessorKey: "rangeMax",
+    header: "Range Max",
+  },
+  {
+    accessorKey: "displayFormat",
+    header: "Display Format",
+  },
+  {
+    accessorKey: "id",
+    header: "Id",
   },
 ];

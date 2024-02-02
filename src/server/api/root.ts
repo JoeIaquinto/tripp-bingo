@@ -1,7 +1,7 @@
 import { createTRPCRouter } from "~/server/api/trpc";
-import { bingoSquaresRouter } from "~/server/api/routers/bingo-board";
 import { gameRouter } from "~/server/api/routers/game";
-import { userBingoRouter } from "~/server/api/routers/user-bingo";
+import { baseSquareRouter } from "./routers/base-squares";
+import { sportEventRouter } from "./routers/sport-events";
 
 /**
  * This is the primary router for your server.
@@ -9,9 +9,9 @@ import { userBingoRouter } from "~/server/api/routers/user-bingo";
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
-  bingoSquares: bingoSquaresRouter,
+  baseSquares: baseSquareRouter,
   game: gameRouter,
-  userBingo: userBingoRouter,
+  sports: sportEventRouter,
 });
 
 // export type definition of API

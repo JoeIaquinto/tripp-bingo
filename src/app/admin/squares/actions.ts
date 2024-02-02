@@ -1,50 +1,52 @@
 'use server'
 
 import { revalidatePath } from "next/cache";
-import { db } from "~/server/db";
 import { api } from "~/trpc/server";
 
-export async function createSquare(square: string) {
-  'use server'
-  await db.bingoSquare.create({
-    data: {
-      content: square
-    }
-  });
-  revalidatePath('/admin');
+export interface Square {
+  description: string;
+  baseGameCategoryId: string;
+  skaterType: "F" | "D" | "G" | "Team" | "N/A";
+  stat: string;
+  rangeMin: number;
+  rangeMax: number;
+  displayFormat: string;
 }
 
-export async function resetSquareStates() {
-  'use server'
-  await db.bingoSquare.updateMany({
-    data: {
-      isActive: false
-    }
-  });
-  revalidatePath('/admin');
+interface SquareUpdate extends Square {
+  id: number;
 }
 
-export async function updateSquare(row: { id: number, content: string, isActive: boolean }) {
+export async function createSquare(props: Square) {
   'use server'
-  await db.bingoSquare.update({
-    where: {
-      id: row.id
-    },
-    data: {
-      content: row.content,
-      isActive: row.isActive,
-    }
-  });
+  await api.baseSquares.createCategorySquare.mutate(props)
+  revalidatePath('/admin/squares');
 }
 
-export async function activateSquare(id: number) {
+export async function updateSquare(props: SquareUpdate) {
   'use server'
-  console.log('activateSquare', id);
-  await api.bingoSquares.activateSquare.mutate(id);
+  await api.baseSquares.updateSquare.mutate(props)
+  revalidatePath('/admin/squares');
 }
 
-export async function deactivateSquare(id: number) {
-  'use server'
-  await api.bingoSquares.deactivateSquare.mutate(id);
+interface Category {
+  name: string;
+  description?: string;
+  gameType: "hockey";
+}
 
+interface CategoryUpdate extends Category {
+  id: string;
+}
+
+export async function createCategory(props: Category) {
+  'use server'
+  await api.baseSquares.createCategory.mutate(props)
+  revalidatePath('/admin/squares');
+}
+
+export async function updateCategory(props: CategoryUpdate) {
+  'use server'
+  await api.baseSquares.updateCategory.mutate(props)
+  revalidatePath('/admin/squares');
 }

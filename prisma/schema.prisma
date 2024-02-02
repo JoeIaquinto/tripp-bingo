@@ -6,62 +6,13 @@ generator client {
 }
 
 datasource db {
-    provider = "postgresql"
+    provider = "sqlite"
     // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
     // Further reading:
     // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
     // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
-    url      = env("DATABASE_PRISMA_URL")
-    directUrl = env("DATABASE_URL_NON_POOLING")
-}
-
-model BingoSquare {
-    id        Int      @id @default(autoincrement())
-    content      String
-    isActive Boolean @default(false)
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    bingoUserSquares UserBingoGameSquare[]
-
-    @@index([content])
-}
-
-model BingoGame {
-    id       Int @id @default(autoincrement())
-    title    String
-    nhlGameId String @default("")
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    userBingoGames    UserBingoGame[]
-}
-
-model UserBingoGame {
-    id        Int      @id @default(autoincrement())
-    bingoGameId    Int
-    userId    String
-    hasBingo Boolean @default(false)
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    squares   UserBingoGameSquare[]
-    user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-    bingoGame BingoGame @relation(fields: [bingoGameId], references: [id], onDelete: Cascade)
-    @@unique([userId, bingoGameId])
-}
-
-model UserBingoGameSquare {
-    id        Int      @id @default(autoincrement())
-    userBingoGameId    Int
-    bingoSquareId    Int
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    userBingoGame UserBingoGame @relation(fields: [userBingoGameId], references: [id], onDelete: Cascade)
-    bingoSquare BingoSquare @relation(fields: [bingoSquareId], references: [id], onDelete: Cascade)
-    @@unique([userBingoGameId, bingoSquareId])
+    url      = env("DATABASE_URL")
+    // directUrl = env("DATABASE_URL_NON_POOLING")
 }
 
 // Necessary for Next auth
@@ -91,6 +42,14 @@ model Session {
     user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model VerificationToken {
+    identifier String
+    token      String   @unique
+    expires    DateTime
+
+    @@unique([identifier, token])
+}
+
 model User {
     id            String    @id @default(cuid())
     name          String?
@@ -100,13 +59,127 @@ model User {
     role          String?
     accounts      Account[]
     sessions      Session[]
-    userBingoGames UserBingoGame[]
+    ownedGames    Game[]
+    playerGames   Player[]
 }
 
-model VerificationToken {
-    identifier String
-    token      String   @unique
-    expires    DateTime
+model Game {
+    id  Int @id @default(autoincrement())
+    name String
+    joinCode String
+    description String?
+    ownerId String
+    owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+    password String?
+    active Boolean @default(true)
+    players Player[]
+    sportEvents SportEvent[]
+    playerSquares PlayerSquare[]
+    categories GameCategory[]
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
 
-    @@unique([identifier, token])
+model Player {
+    userId String
+    gameId Int
+    rerollsLeft Int @default(3)
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+    game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+    @@id([userId, gameId])
+    bingoId Int?
+    bingo BingoPattern? @relation(fields: [bingoId], references: [id], onDelete: Cascade)
+    squares PlayerSquare[]
+}
+
+model PlayerSquare {
+    playerId String
+    gameId Int
+    categoryId String
+    squareIndex Int
+    squareId String
+    category GameCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+    player Player @relation(fields: [playerId, gameId], references: [userId, gameId], onDelete: Cascade)
+    game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+    square SportEventSquare @relation(fields: [squareId], references: [id], onDelete: Cascade)
+    @@id([playerId, gameId, categoryId, squareIndex])
+}
+
+model GameCategory {
+    id String @id @default(cuid())
+    name String
+    gameType String
+    description String?
+    categoryIndex Int
+    gameId Int
+    game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+    baseCategoryId String
+    baseCategory BaseGameCategory @relation(fields: [baseCategoryId], references: [id], onDelete: Cascade)
+    squares SportEventSquare[]
+    playersWithCategory PlayerSquare[]
+}
+
+model SportEvent {
+    id String @id @default(cuid())
+    homeTeam String
+    awayTeam String
+    startTime DateTime
+    gameType String
+    games Game[]
+    squares SportEventSquare[]
+    lastUpdated DateTime? @updatedAt
+    apiIdentifier String
+    lastUpdatedData String
+}
+
+model SportEventSquare {
+    id String @id @default(cuid())
+    sportEventId String
+    sportEvent SportEvent @relation(fields: [sportEventId], references: [id], onDelete: Cascade)
+    hasOccured Boolean @default(false)
+    
+    value Int
+    description String
+    skaterType String
+    stat String
+    teamId Int?
+    playerId Int?
+    currentValue Int @default(0)
+    playersWithSquare PlayerSquare[]
+    categories GameCategory[]
+}
+
+model BingoPattern {
+    id Int @id @default(autoincrement())
+    description String
+    lines BingoPatternLine[]
+    playersWithBingo Player[]
+}
+
+model BingoPatternLine {
+    id Int @id @default(autoincrement())
+    bingoId Int
+    bingo BingoPattern @relation(fields: [bingoId], references: [id], onDelete: Cascade)
+    indexPattern String
+}
+
+model BaseGameCategory {
+    id String @id @default(cuid())
+    name String
+    gameType String
+    description String?
+    squares BaseGameCategorySquare[]
+    categories GameCategory[]
+}
+
+model BaseGameCategorySquare {
+    id Int @id @default(autoincrement())
+    baseGameCategoryId String
+    baseGameCategory BaseGameCategory @relation(fields: [baseGameCategoryId], references: [id], onDelete: Cascade)
+    description String
+    skaterType String
+    stat String
+    rangeMin Int
+    rangeMax Int
+    displayFormat String
 }

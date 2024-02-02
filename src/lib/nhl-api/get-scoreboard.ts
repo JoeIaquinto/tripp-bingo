@@ -125,26 +125,28 @@ export interface BoxScoreResponse extends BaseGameResponse {
   boxscore: BoxScore;
 };
 
-export interface PlayByPlayResponse extends BaseGameResponse {
-  plays: {
-    eventId: number;
-    period: number;
-    periodDescriptor: {
-      number: number;
-      periodType: string;
-    };
-    timeInPeriod: string;
-    timeRemaining: string;
-    situationCode: string;
-    homeTeamDefendingSide: string;
-    typeCode: number;
-    typeDescKey: string;
-    sortOrder: number;
-    details: FaceoffEvent | MissedShotEvent | StoppageEvent | HitEvent | BlockedShotEvent | GiveawayEvent | ShotOnGoalEvent | TakeawayEvent | GoalEvent | PenaltyEvent | undefined;
-  }[];
+export interface Play {
+  eventId: number;
+  period: number;
+  periodDescriptor: {
+    number: number;
+    periodType: string;
+  };
+  timeInPeriod: string;
+  timeRemaining: string;
+  situationCode: string;
+  homeTeamDefendingSide: string;
+  typeCode: number;
+  typeDescKey: string;
+  sortOrder: number;
+  details: FaceoffEvent | MissedShotEvent | StoppageEvent | HitEvent | BlockedShotEvent | GiveawayEvent | ShotOnGoalEvent | TakeawayEvent | GoalEvent | PenaltyEvent | undefined;
 }
 
-interface FaceoffEvent {
+export interface PlayByPlayResponse extends BaseGameResponse {
+  plays: Play[];
+}
+
+export interface FaceoffEvent {
   eventOwnerTeamId: number;
   losingPlayerId: number;
   winningPlayerId: number;
@@ -153,7 +155,7 @@ interface FaceoffEvent {
   zoneCode: string;
 }
 
-interface MissedShotEvent {
+export interface MissedShotEvent {
   xCoord: number;
   yCoord: number;
   zoneCode: string;
@@ -164,11 +166,11 @@ interface MissedShotEvent {
   eventOwnerTeamId: number;
 }
 
-interface StoppageEvent {
+export interface StoppageEvent {
   reason: string;
 }
 
-interface HitEvent {
+export interface HitEvent {
   xCoord: number;
   yCoord: number;
   zoneCode: string;
@@ -177,7 +179,7 @@ interface HitEvent {
   hitteePlayerId: number;
 }
 
-interface BlockedShotEvent {
+export interface BlockedShotEvent {
   xCoord: number;
   yCoord: number;
   zoneCode: string;
@@ -186,7 +188,7 @@ interface BlockedShotEvent {
   shooterPlayerId: number;
 }
 
-interface GiveawayEvent {
+export interface GiveawayEvent {
   xCoord: number;
   yCoord: number;
   zoneCode: string;
@@ -194,7 +196,7 @@ interface GiveawayEvent {
   playerId: number;
 }
 
-interface ShotOnGoalEvent {
+export interface ShotOnGoalEvent {
   xCoord: number;
   yCoord: number;
   zoneCode: string;
@@ -206,7 +208,7 @@ interface ShotOnGoalEvent {
   homeSOG: number;
 }
 
-interface TakeawayEvent {
+export interface TakeawayEvent {
   xCoord: number;
   yCoord: number;
   zoneCode: string;
@@ -214,7 +216,7 @@ interface TakeawayEvent {
   playerId: number;
 }
 
-interface GoalEvent {
+export interface GoalEvent {
   eventOwnerTeamId: number;
   xCoord: number;
   yCoord: number;
@@ -231,7 +233,7 @@ interface GoalEvent {
   homeScore: number;
 }
 
-interface PenaltyEvent {
+export interface PenaltyEvent {
   xCoord: number;
   yCoord: number;
   zoneCode: string;

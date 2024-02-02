@@ -6,7 +6,7 @@ import { z } from "zod";
 import { Button } from "../../_components/ui/button";
 import { Input } from "../../_components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "../../_components/ui/form";
-import { deleteGame } from "./actions";
+import { deactivateGame } from "./actions";
 
 const FormSchema = z.object({
   id: z.string().min(1)
@@ -19,7 +19,7 @@ export default function DeleteGameForm() {
 
   async function onSubmit(data: {id: string}) {
     const id = parseInt(data.id);
-    await deleteGame(id);
+    await deactivateGame(id);
 
     form.reset();
   }
