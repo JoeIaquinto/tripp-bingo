@@ -27,7 +27,10 @@ async function GameCounter() {
   return (
     <div className="flex flex-col items-center">
       <span>{gameCount} active game{gameCount !== 1 ? 's' : ''}. {session ? null : "Sign in to play!"}</span>
-      {gameCount === 0 ? <span>Please ask the admin to create a game.</span> : null}
+      {gameCount === 0 ? 
+        <Link href="/game/create" className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20 text-sm md:text-md">
+          New Game
+        </Link> : null}
     </div>
   )
 }

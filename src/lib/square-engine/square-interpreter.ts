@@ -94,7 +94,7 @@ export function generate(squareText: BaseHockeySquareData, team: TeamLandingInfo
   }
   if (!player) {
     return {
-      value: rand.intBetween(rangeMin, rangeMax),
+      value: rand.intBetween(rangeMin, rangeMax) + 0.5,
       stat: stat,
       teamId: team.id,
       skaterType: skaterType,
@@ -103,7 +103,7 @@ export function generate(squareText: BaseHockeySquareData, team: TeamLandingInfo
   }
 
   return {
-    value: rand.intBetween(rangeMin, rangeMax),
+    value: rand.intBetween(rangeMin, rangeMax) + 0.5,
     stat: stat,
     skaterType: skaterType,
     playerId: player.playerId,

@@ -17,9 +17,19 @@ export const gameRouter = createTRPCRouter({
     description: z.string().max(100).optional(),
     sportEvents: z.array(z.string().cuid()).min(1),
     categories: z.array(z.string().cuid()).min(5).max(5),
+    bingoPatterns: z.array(z.number().int()).min(1).optional(),
     password: z.string().optional(),
   })).mutation(async ({ ctx, input }) => {
     const rand = getRandomSeed();
+
+    const bingoPatterns = input.bingoPatterns ?? [(await ctx.db.bingoPattern.findFirst({
+      where: {
+        name: "Classic"
+      },
+      select: {
+        id: true
+      }
+    }))!.id];
 
     const categories = await ctx.db.baseGameCategory.findMany({
       where: {
@@ -55,6 +65,9 @@ export const gameRouter = createTRPCRouter({
             }
           })
         },
+        bingoPatterns: {
+          connect: bingoPatterns.map(x => ({ id: x }))
+        },
         sportEvents: {
           connect: input.sportEvents.map(x => ({ id: x }))
         },
@@ -62,6 +75,16 @@ export const gameRouter = createTRPCRouter({
     });
 
     return game;
+  }),
+
+  gameHasPassword: protectedProcedure.input(z.object({
+    gameId: z.number().int() 
+  })).query(async ({ ctx, input }) => {
+    const game = await ctx.db.game.findFirst({ where: { id: input.gameId } });
+    if (!game) {
+      throw new Error("Game not found");
+    }
+    return game.password ? true : false;
   }),
 
   joinGame: protectedProcedure.input(z.object({
@@ -126,7 +149,8 @@ export const gameRouter = createTRPCRouter({
     
     for (const category of game.categories) {
       const baseSquares = category.baseCategory.squares;
-      for (let i = 0; i < 5; i++) {
+      const newSquares: HockeySquareData[] = [];
+      while (newSquares.length < 5) {
         const baseSquare = getRandomElement(baseSquares, rand);
         const randomGame = getRandomElement(landings, rand);
         const home = rand.random() > 0.5;
@@ -139,34 +163,36 @@ export const gameRouter = createTRPCRouter({
         const randomPlayer = usePlayer ? getRandomElement(players, rand): undefined;
 
         const squareData = generate(baseSquare as BaseHockeySquareData, randomTeam, randomPlayer, rand);
+        if(!similarExists({ squares: newSquares, square: squareData })) {
+          const description = formatSquareDescription(baseSquare, randomPlayer, squareData, randomTeam);
 
-        const description = formatSquareDescription(baseSquare, randomPlayer, squareData, randomTeam);
-
-        const sportEventSquare = await ctx.db.sportEventSquare.create({
-          data: {
-            description,
-            value: squareData.value,
-            categories: {
-              connect: {
-                id: category.id
-              }
-            },
-            playerId: squareData.playerId,
-            teamId: squareData.teamId,
-            skaterType: squareData.skaterType,
-            stat: squareData.stat,
-            sportEventId: randomGame.sportEvent.id,
-          }
-        });
-        await ctx.db.playerSquare.create({
-          data: {
-            playerId: playerGame.userId,
-            gameId: game.id,
-            squareId: sportEventSquare.id,
-            categoryId: category.id,
-            squareIndex: i,
-          }
-        });
+          const sportEventSquare = await ctx.db.sportEventSquare.create({
+            data: {
+              description,
+              value: squareData.value,
+              categories: {
+                connect: {
+                  id: category.id
+                }
+              },
+              playerId: squareData.playerId,
+              teamId: squareData.teamId,
+              skaterType: squareData.skaterType,
+              stat: squareData.stat,
+              sportEventId: randomGame.sportEvent.id,
+            }
+          });
+          await ctx.db.playerSquare.create({
+            data: {
+              playerId: playerGame.userId,
+              gameId: game.id,
+              squareId: sportEventSquare.id,
+              categoryId: category.id,
+              squareIndex: newSquares.length,
+            }
+          });
+          newSquares.push(squareData);
+        }
       }
       
     }
@@ -175,7 +201,7 @@ export const gameRouter = createTRPCRouter({
   reRollSquare: protectedProcedure.input(z.object({
     gameId: z.number().int(),
     categoryId: z.string().cuid(),
-    squareIndex: z.number().int().positive().max(4),
+    squareIndex: z.number().int().min(0).max(4),
   })).mutation(async ({ ctx, input }) => {
     const player = await ctx.db.player.findFirst({
       where: {
@@ -201,11 +227,10 @@ export const gameRouter = createTRPCRouter({
       }
     })
 
-    const square = await ctx.db.playerSquare.findFirst({
+    const existingSquares = await ctx.db.playerSquare.findMany({
       where: {
         gameId: input.gameId,
         categoryId: input.categoryId,
-        squareIndex: input.squareIndex,
         playerId: ctx.session.user.id
       },
       include: {
@@ -227,12 +252,14 @@ export const gameRouter = createTRPCRouter({
       }
     });
 
-    if (!square) {
+    const squareToReroll = existingSquares.find(x => x.squareIndex === input.squareIndex);
+
+    if (!squareToReroll) {
       throw new Error("Square not found");
     }
 
-    const baseSquares = square.category.baseCategory.squares;
-    const landings = await Promise.all(square.game.sportEvents.map(async x => {
+    const baseSquares = squareToReroll.category.baseCategory.squares;
+    const landings = await Promise.all(squareToReroll.game.sportEvents.map(async x => {
       return {
         landing: await getLanding(x.apiIdentifier),
         sportEvent: x
@@ -240,55 +267,59 @@ export const gameRouter = createTRPCRouter({
     }));
     const rand = getRandomSeed();
 
-    const baseSquare = getRandomElement(baseSquares, rand);
-    const randomGame = getRandomElement(landings, rand);
-    const home = rand.random() > 0.5;
-    const randomTeam = home ? randomGame.landing.homeTeam : randomGame.landing.awayTeam;
-    const players = (home ? 
-      randomGame.landing.matchup.skaterSeasonStats.filter(x => x.teamId === randomGame.landing.homeTeam.id) :
-      randomGame.landing.matchup.skaterSeasonStats.filter(x => x.teamId === randomGame.landing.awayTeam.id))
-      .filter(x => x.position === baseSquare.skaterType || (baseSquare.skaterType === 'F' ? (x.position === 'L' || x.position === 'R' || x.position === 'C') : false));
-    const usePlayer = rand.random() > 0.2;
-    const randomPlayer = usePlayer ? getRandomElement(players, rand): undefined;
+    while (true) {
+      const baseSquare = getRandomElement(baseSquares, rand);
+      const randomGame = getRandomElement(landings, rand);
+      const home = rand.random() > 0.5;
+      const randomTeam = home ? randomGame.landing.homeTeam : randomGame.landing.awayTeam;
+      const players = (home ? 
+        randomGame.landing.matchup.skaterSeasonStats.filter(x => x.teamId === randomGame.landing.homeTeam.id) :
+        randomGame.landing.matchup.skaterSeasonStats.filter(x => x.teamId === randomGame.landing.awayTeam.id))
+        .filter(x => x.position === baseSquare.skaterType || (baseSquare.skaterType === 'F' ? (x.position === 'L' || x.position === 'R' || x.position === 'C') : false));
+      const usePlayer = rand.random() > 0.2;
+      const randomPlayer = usePlayer ? getRandomElement(players, rand): undefined;
+      
+      const existingSquareInfo = existingSquares.map(x => x.square as HockeySquareData);
+      const squareData = generate(baseSquare as BaseHockeySquareData, randomTeam, randomPlayer, rand);
+      if (!similarExists({ squares: existingSquareInfo, square: squareData })) {
+        const description = formatSquareDescription(baseSquare, randomPlayer, squareData, randomTeam);
 
-    const squareData = generate(baseSquare as BaseHockeySquareData, randomTeam, randomPlayer, rand);
-
-    const description = formatSquareDescription(baseSquare, randomPlayer, squareData, randomTeam);
-
-    const sportEventSquare = await ctx.db.sportEventSquare.create({
-      data: {
-        description,
-        value: squareData.value,
-        categories: {
-          connect: {
-            id: square.categoryId
+        const sportEventSquare = await ctx.db.sportEventSquare.create({
+          data: {
+            description,
+            value: squareData.value,
+            categories: {
+              connect: {
+                id: squareToReroll.categoryId
+              }
+            },
+            playerId: squareData.playerId,
+            teamId: squareData.teamId,
+            skaterType: squareData.skaterType,
+            stat: squareData.stat,
+            sportEventId: randomGame.sportEvent.id,
           }
-        },
-        playerId: squareData.playerId,
-        teamId: squareData.teamId,
-        skaterType: squareData.skaterType,
-        stat: squareData.stat,
-        sportEventId: randomGame.sportEvent.id,
+        });
+        const newSquare = await ctx.db.playerSquare.update({
+          where: {
+            playerId_gameId_categoryId_squareIndex: {
+              categoryId: input.categoryId,
+              gameId: input.gameId,
+              playerId: ctx.session.user.id,
+              squareIndex: input.squareIndex
+            }  
+          },
+          data: {
+            squareId: sportEventSquare.id,
+          }
+        });
+    
+        return {
+          newSquare,
+          rerollsLeft: updatePlayer.rerollsLeft
+        };
       }
-    });
-    const newSquare = await ctx.db.playerSquare.update({
-      where: {
-        playerId_gameId_categoryId_squareIndex: {
-          categoryId: input.categoryId,
-          gameId: input.gameId,
-          playerId: ctx.session.user.id,
-          squareIndex: input.squareIndex
-        }  
-      },
-      data: {
-        squareId: sportEventSquare.id,
-      }
-    });
-
-    return {
-      newSquare,
-      rerollsLeft: updatePlayer.rerollsLeft
-    };
+    }
   }),
 
   listGames: protectedProcedure.query(async ({ ctx }) => {
@@ -468,6 +499,17 @@ export const gameRouter = createTRPCRouter({
               not: undefined
             }
           }
+        },
+        bingoPatterns: {
+          select: {
+            name: true,
+            description: true,
+            lines: {
+              select: {
+                indexPattern: true
+              }
+            }
+          }
         }
       }
     });
@@ -541,10 +583,57 @@ export const gameRouter = createTRPCRouter({
     });
 
     return {
-      game,
+      game: {
+        ...game,
+        bingoPatterns: game.bingoPatterns.map(x => {
+          return {
+            ...x,
+            lines: x.lines.map(y => {
+              return {
+                ...y,
+                indexPattern: JSON.parse(y.indexPattern) as { x: number, y: number }[]
+              }
+            })
+          }
+        })
+      },
       myBoard,
       otherPlayers
     }
+  }),
+
+  getPlayers: protectedProcedure.input(z.object({ gameId: z.number().int() }))
+  .query(async ({ ctx, input }) => {
+    const players = await ctx.db.player.findMany({
+      where: {
+        gameId: input.gameId
+      },
+      select: {
+        user: {
+          select: {
+            name: true,
+            id: true,
+          },
+        },
+        bingoId: true,
+        _count: true,
+        squares: {
+          where: {
+            square: {
+              hasOccured: true
+            }
+          },
+          select: {
+            square: {
+              select: {
+                hasOccured: true
+              }
+            },
+          }
+        }
+      }
+    });
+    return players;
   }),
 });
 
@@ -561,3 +650,14 @@ function formatSquareDescription(baseSquare: { id: number; baseGameCategoryId: s
   return description;
 }
 
+function similarExists({ squares, square }: {
+  squares: HockeySquareData[]; square: HockeySquareData;
+}): boolean {
+      if (square.playerId && squares.some(x => x.playerId === square.playerId)) {
+        return true;
+      }
+      if (!square.playerId && square.teamId && squares.some(x => x.teamId === square.teamId && x.stat === square.stat)) {
+        return true;
+      }
+      return false;
+    }

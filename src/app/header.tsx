@@ -16,7 +16,7 @@ export default async function Header() {
               width={24}
               height={24}
                />
-            <span className="hidden font-bold sm:inline-block text-sm md:text-lg">Tripp Tracy Bingo</span>
+            <span className="hidden font-bold sm:inline-block text-sm md:text-lg">Bingorts</span>
           </Link>
         </div>
         <div className="flex flex-1 items-center space-x-2 justify-end">
