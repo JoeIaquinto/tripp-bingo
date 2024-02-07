@@ -16,7 +16,7 @@ export default async function Header() {
               width={24}
               height={24}
                />
-            <span className="hidden font-bold sm:inline-block text-sm md:text-lg">Tripp Tracy Bingo</span>
+            <span className="hidden font-bold sm:inline-block text-sm md:text-lg">Bingorts</span>
           </Link>
         </div>
         <div className="flex flex-1 items-center space-x-2 justify-end">
@@ -24,6 +24,13 @@ export default async function Header() {
             session?.user?.role === "admin" ? (
               <Link href="/admin" className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20 text-sm md:text-md">
                 Admin
+              </Link>
+            ) : null
+          }
+          {
+            session ? (
+              <Link href="/game/create" className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20 text-sm md:text-md">
+                New Game
               </Link>
             ) : null
           }

@@ -13,6 +13,9 @@ export default async function Page() {
         <Link href="/admin/squares">
           <span>Bingo Squares</span>
         </Link>
+        <Link href="/admin/bingo-patterns">
+          <span>Bingo Patterns</span>
+        </Link>
       </div>
     </main>
   )

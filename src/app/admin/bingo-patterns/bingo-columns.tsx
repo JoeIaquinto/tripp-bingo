@@ -3,37 +3,28 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
 import { Button } from "../../_components/ui/button";
+import Link from "next/link";
 
-export type Game = {
-  password: boolean;
-  sportEvents: string;
+export type BingoPattern = {
   name: string;
   description: string | null;
   id: number;
-  active: boolean;
-  owner: {
-      name: string | null;
-      id: string;
-  };
   _count: {
-      owner: number;
-      players: number;
-      sportEvents: number;
-      playerSquares: number;
-      categories: number;
+      lines: number;
+      games: number;
   };
 };
 
-export const columns:  ColumnDef<Game>[] = [
+export const columns:  ColumnDef<BingoPattern>[] = [
   {
-    accessorKey: "title",
+    accessorKey: "name",
     header: ({ column }) => {
       return (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Title
+          Name
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
@@ -48,19 +39,22 @@ export const columns:  ColumnDef<Game>[] = [
     header: "Description",
   },
   {
-    accessorKey: "owner.name",
-    header: "Owner",
+    accessorKey: "_count.lines",
+    header: "Lines in Pattern",
   },
   {
-    accessorKey: "_count.players",
-    header: "Players",
+    accessorKey: "_count.games",
+    header: "Games W/ Pattern",
   },
   {
-    accessorKey: "sportEvents",
-    header: "Sport Events",
-  },
-  {
-    accessorKey: "active",
-    header: "Active",
+    accessorKey: "id",
+    header: "Actions",
+    cell: ({ row }) => {
+      return (
+        <div className="flex flex-row gap-4">
+          <Link href={`/admin/bingo-patterns/${row.original.id}`}>View Patterns</Link>
+        </div>
+      )
+    },
   }
 ]

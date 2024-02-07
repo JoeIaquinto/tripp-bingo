@@ -1,13 +1,13 @@
 import { getServerAuthSession } from "~/server/auth";
 import { DataTable } from "../../_components/ui/data-table";
 import Header from "~/app/header";
-import { columns } from "./game-columns";
-import DeleteGameForm from "./delete-game-form";
 import { api } from "~/trpc/server";
+import { columns } from "./bingo-columns";
+import CreatePatternForm from "./create-pattern-form";
 
-export default async function Admin() {
+export default async function BingoPatterns() {
   const session = await getServerAuthSession();
-  const games = await api.game.listAllGames.query();
+  const bingoPatterns = await api.bingoPatterns.listPatterns.query();
 
   if (!session?.user) return null;
   if (session?.user?.role !== "admin") return null;
@@ -17,9 +17,9 @@ export default async function Admin() {
       <Header />
       <div className="space-y-6 gap-4 m-4">
         <div className="flex flex-row gap-4 items-baseline ml-4">
-          <DeleteGameForm />
+          <CreatePatternForm />
         </div>
-        <DataTable data={games} columns={columns} colToFilter="title" />
+        <DataTable data={bingoPatterns} columns={columns} colToFilter="name" />
       </div>
     </main>
   )
