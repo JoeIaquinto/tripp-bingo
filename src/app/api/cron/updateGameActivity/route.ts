@@ -2,8 +2,12 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { db } from '~/server/db';
 
 export async function GET(req : NextRequest) {
-  if (req.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.error();
+  const authHeader = req.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response('Unauthorized', {
+      status: 401,
+      statusText: 'Unauthorized'
+    });
   }
   await db.game.updateMany({
     where: {

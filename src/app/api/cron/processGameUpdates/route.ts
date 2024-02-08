@@ -11,8 +11,12 @@ import {
 export const maxDuration = 300;
 
 export async function GET(req : NextRequest) {
-  if (req.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.error();
+  const authHeader = req.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response('Unauthorized', {
+      status: 401,
+      statusText: 'Unauthorized'
+    });
   }
   console.log('Processing game updates');
 
