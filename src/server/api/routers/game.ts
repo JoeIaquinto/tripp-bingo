@@ -153,18 +153,22 @@ export const gameRouter = createTRPCRouter({
       while (newSquares.length < 5) {
         const baseSquare = getRandomElement(baseSquares, rand);
         const randomGame = getRandomElement(landings, rand);
-        const home = rand.random() > 0.5;
-        const randomTeam = home ? randomGame.landing.homeTeam : randomGame.landing.awayTeam;
-        const players = (home ? 
-          randomGame.landing.matchup.skaterSeasonStats.filter(x => x.teamId === randomGame.landing.homeTeam.id) :
-          randomGame.landing.matchup.skaterSeasonStats.filter(x => x.teamId === randomGame.landing.awayTeam.id))
-          .filter(x => x.position === baseSquare.skaterType || (baseSquare.skaterType === 'F' ? (x.position === 'L' || x.position === 'R' || x.position === 'C') : false));
-        const usePlayer = rand.random() > 0.2;
-        const randomPlayer = usePlayer ? getRandomElement(players, rand): undefined;
+        const homeTeam = randomGame.landing.homeTeam;
+        const awayTeam = randomGame.landing.awayTeam;
+        const homeTeamSelected = rand.random() > 0.5;
+        const selectedTeam = homeTeamSelected ? homeTeam : awayTeam;
+        const otherTeam = homeTeamSelected ? awayTeam : homeTeam;
 
-        const squareData = generate(baseSquare as BaseHockeySquareData, randomTeam, randomPlayer, rand);
+        let randomPlayer: PlayerLandingStats | undefined;
+        if (baseSquare.skaterType === 'F' || baseSquare.skaterType === 'D') {
+          const players = randomGame.landing.matchup.skaterSeasonStats.filter(x => x.teamId === selectedTeam.id)
+            .filter(x => x.position === baseSquare.skaterType || (baseSquare.skaterType === 'F' ? (x.position === 'L' || x.position === 'R' || x.position === 'C') : false));
+          randomPlayer = getRandomElement(players, rand);
+        } 
+
+        const squareData = generate(baseSquare as BaseHockeySquareData, selectedTeam, randomPlayer, rand);
         if(!similarExists({ squares: newSquares, square: squareData })) {
-          const description = formatSquareDescription(baseSquare, randomPlayer, squareData, randomTeam);
+          const description = formatSquareDescription(baseSquare, randomPlayer, squareData, selectedTeam, otherTeam, homeTeamSelected);
 
           const sportEventSquare = await ctx.db.sportEventSquare.create({
             data: {
@@ -251,7 +255,8 @@ export const gameRouter = createTRPCRouter({
         }
       }
     });
-
+    
+    const existingSquareInfo = existingSquares.map(x => x.square as HockeySquareData);
     const squareToReroll = existingSquares.find(x => x.squareIndex === input.squareIndex);
 
     if (!squareToReroll) {
@@ -270,23 +275,25 @@ export const gameRouter = createTRPCRouter({
     while (true) {
       const baseSquare = getRandomElement(baseSquares, rand);
       const randomGame = getRandomElement(landings, rand);
-      const home = rand.random() > 0.5;
-      const randomTeam = home ? randomGame.landing.homeTeam : randomGame.landing.awayTeam;
-      const players = (home ? 
-        randomGame.landing.matchup.skaterSeasonStats.filter(x => x.teamId === randomGame.landing.homeTeam.id) :
-        randomGame.landing.matchup.skaterSeasonStats.filter(x => x.teamId === randomGame.landing.awayTeam.id))
-        .filter(x => x.position === baseSquare.skaterType || (baseSquare.skaterType === 'F' ? (x.position === 'L' || x.position === 'R' || x.position === 'C') : false));
-      const usePlayer = rand.random() > 0.2;
-      const randomPlayer = usePlayer ? getRandomElement(players, rand): undefined;
+      const homeTeam = randomGame.landing.homeTeam;
+      const awayTeam = randomGame.landing.awayTeam;
+      const homeTeamSelected = rand.random() > 0.5;
+      const selectedTeam = homeTeamSelected ? homeTeam : awayTeam;
+      const otherTeam = homeTeamSelected ? awayTeam : homeTeam;
+
+      let randomPlayer: PlayerLandingStats | undefined;
+      if (baseSquare.skaterType === 'F' || baseSquare.skaterType === 'D') {
+        const players = randomGame.landing.matchup.skaterSeasonStats.filter(x => x.teamId === selectedTeam.id)
+          .filter(x => x.position === baseSquare.skaterType || (baseSquare.skaterType === 'F' ? (x.position === 'L' || x.position === 'R' || x.position === 'C') : false));
+        randomPlayer = getRandomElement(players, rand);
+      } 
+      const squareData = generate(baseSquare as BaseHockeySquareData, selectedTeam, randomPlayer, rand);
       
-      const existingSquareInfo = existingSquares.map(x => x.square as HockeySquareData);
-      const squareData = generate(baseSquare as BaseHockeySquareData, randomTeam, randomPlayer, rand);
       if (!similarExists({ squares: existingSquareInfo, square: squareData })) {
-        const description = formatSquareDescription(baseSquare, randomPlayer, squareData, randomTeam);
 
         const sportEventSquare = await ctx.db.sportEventSquare.create({
           data: {
-            description,
+            description: formatSquareDescription(baseSquare, randomPlayer, squareData, selectedTeam, otherTeam, homeTeamSelected),
             value: squareData.value,
             categories: {
               connect: {
@@ -637,7 +644,7 @@ export const gameRouter = createTRPCRouter({
   }),
 });
 
-function formatSquareDescription(baseSquare: { id: number; baseGameCategoryId: string; description: string; skaterType: string; stat: string; rangeMin: number; rangeMax: number; displayFormat: string; }, randomPlayer: PlayerLandingStats | undefined, squareData: HockeySquareData, randomTeam: TeamLandingInfo) {
+function formatSquareDescription(baseSquare: { id: number; baseGameCategoryId: string; description: string; skaterType: string; stat: string; rangeMin: number; rangeMax: number; displayFormat: string; }, randomPlayer: PlayerLandingStats | undefined, squareData: HockeySquareData, randomTeam: TeamLandingInfo, otherTeam: TeamLandingInfo, randomTeamHome: boolean) {
   let description = baseSquare.displayFormat;
   if (randomPlayer && squareData.teamId) {
     description = description.replace("{player}", randomPlayer.name.default);
@@ -645,9 +652,53 @@ function formatSquareDescription(baseSquare: { id: number; baseGameCategoryId: s
   if (squareData.teamId) {
     description = description.replace("{team}", randomTeam.name.default);
   }
+  description = description.replace("{game}", getGameDescriptor(randomTeam, otherTeam, randomTeamHome));
   description = description.replace("{stat}", squareData.stat);
   description = description.replace("{value}", squareData.value.toString());
   return description;
+}
+
+const teamNameMap: Record<string, string> = {
+  'Colorado Avalanche': 'COL',
+  'Chicago Blackhawks': 'CHI',
+  'Columbus Blue Jackets': 'CBJ',
+  'Dallas Stars': 'DAL',
+  'Detroit Red Wings': 'DET',
+  'Florida Panthers': 'FLA',
+  'Los Angeles Kings': 'LAK',
+  'Minnesota Wild': 'MIN',
+  'Montreal Canadiens': 'MTL',
+  'Nashville Predators': 'NSH',
+  'New Jersey Devils': 'NJD',
+  'New York Islanders': 'NYI',
+  'New York Rangers': 'NYR',
+  'Ottawa Senators': 'OTT',
+  'Philadelphia Flyers': 'PHI',
+  'Pittsburgh Penguins': 'PIT',
+  'San Jose Sharks': 'SJS',
+  'St. Louis Blues': 'STL',
+  'Tampa Bay Lightning': 'TBL',
+  'Toronto Maple Leafs': 'TOR',
+  'Vancouver Canucks': 'VAN',
+  'Vegas Golden Knights': 'VGK',
+  'Washington Capitals': 'WSH',
+  'Winnipeg Jets': 'WPG',
+  'Anaheim Ducks': 'ANA',
+  'Arizona Coyotes': 'ARI',
+  'Boston Bruins': 'BOS',
+  'Buffalo Sabres': 'BUF',
+  'Calgary Flames': 'CGY',
+  'Carolina Hurricanes': 'CAR',
+  'Edmonton Oilers': 'EDM',
+  'Seattle Kraken': 'SEA',
+};
+
+function getGameDescriptor(team1: TeamLandingInfo, team2: TeamLandingInfo, team1Home: boolean) {
+  const team1Abbrev = teamNameMap[team1.name.default]!;
+  const team2Abbrev = teamNameMap[team2.name.default]!;
+  const awayTeamAbbrev = team1Home ? team2Abbrev : team1Abbrev;
+  const homeTeamAbbrev = team1Home ? team1Abbrev : team2Abbrev;
+  return `${awayTeamAbbrev}@${homeTeamAbbrev}`;
 }
 
 function similarExists({ squares, square }: {
