@@ -430,23 +430,6 @@ export const gameRouter = createTRPCRouter({
     });
   }),
 
-  updateExpiredGames: protectedProcedure.mutation(async ({ ctx }) => {
-    const games = await ctx.db.game.updateMany({
-      where: {
-        createdAt: {
-          lte: new Date(new Date().getTime() - 60 * 60 * 1000 * 6),
-          gte: new Date(new Date().getTime() - 60 * 60 * 1000 * 12)
-        },
-        active: true,
-      },
-      data: {
-        active: false,
-        joinCode: undefined
-      }
-    });
-    return games;
-  }),
-
   countGames: publicProcedure.query(async ({ ctx }) => {
     const count = await ctx.db.game.count({
       where: {

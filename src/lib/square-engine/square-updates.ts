@@ -174,7 +174,7 @@ export function evaluateSquares(squareInfos: { eventId: string; hockeySquareData
 
 export async function getSquaresToEvaluate() {
   const sportEvents = await fetchSportEventsFromDb();
-
+  console.log('Got sport events', sportEvents.length);
   async function fetchNhlRequests(nhlGameId: string) {
     return {
       nhlGameId,
@@ -202,7 +202,7 @@ export async function getSquaresToEvaluate() {
     const { pbp, eventId } = event;
     const eventWithSquares = sportEvents.find(x => x.id === eventId);
     const lastEvaluatedEvent = JSON.parse(eventWithSquares!.lastUpdatedData) as { period: number, timeInPeriod: string };
-    
+    console.log('Got squares to evaluate', eventWithSquares!.squares.length, eventId, lastEvaluatedEvent);
     return {
       eventId,
       hockeySquareData: eventWithSquares!.squares.map(square => {
