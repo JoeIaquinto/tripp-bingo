@@ -1,6 +1,9 @@
 {
   "crons": [{
     "path": "/api/cron/processGameUpdates",
-    "schedule": "0 0-3,12-23 * * *"
+    "schedule": "* 0-3,12-23 * * *"
+  }, {
+    "path": "/api/cron/updateGameActivity",
+    "schedule": "15 * * * *"
   }]
 }
