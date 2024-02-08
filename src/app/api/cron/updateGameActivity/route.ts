@@ -5,7 +5,7 @@ export async function GET(req : NextRequest) {
   if (req.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.error();
   }
-  const games = await db.game.updateMany({
+  await db.game.updateMany({
     where: {
       createdAt: {
         lte: new Date(new Date().getTime() - 60 * 60 * 1000 * 6),
@@ -19,5 +19,5 @@ export async function GET(req : NextRequest) {
     }
   });
 
-  return NextResponse.json({ ok: true, games });
+  return NextResponse.json({ ok: true });
 }

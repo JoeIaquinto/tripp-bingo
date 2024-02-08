@@ -24,5 +24,5 @@ export async function GET(req : NextRequest) {
   console.log('Updated squares and events', updatedPlayers.length);
   const updatedPlayerBingos = await updateBingosForPlayers(updatedPlayers);
   console.log('Updated player bingos', updatedPlayerBingos.length);
-  return NextResponse.json({ ok: true, updatedPlayerBingos });
+  return NextResponse.json({ ok: true });
 }
