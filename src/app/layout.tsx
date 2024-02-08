@@ -11,8 +11,8 @@ const fontSans = FontSans({
 })
 
 export const metadata = {
-  title: "Tripp Tracy Bingo!",
-  description: "With Love from Canescord",
+  title: "Bingorts: Sports bingo",
+  description: "Play bingo to your favorite sports",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 
