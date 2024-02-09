@@ -1,5 +1,5 @@
 import { type PlayByPlayResponse, getPlayByPlay } from "../nhl-api/get-scoreboard";
-import { type HockeySquareData, type SkaterType, type HockeyStat, evaluate } from "./square-interpreter";
+import { type HockeySquareData, type SkaterType, type HockeyStat } from "./square-interpreter";
 import { db } from "~/server/db";
 
 interface BatchedGameRequests {
@@ -101,18 +101,9 @@ async function updateBingoForPlayer(playerId: string, gameId: number) {
 }
 
 export async function updateSquaresAndEvent(updatedSquares: { squares: HockeySquareData[]; eventId: string; lastEvaluatedEvent: { period: number; timeInPeriod: string; }; }[]) {
+ 
   const updatedPlayers = await Promise.allSettled(updatedSquares.map(async (squareUpdate) => {
     const playersUpdated = await updateSquares(squareUpdate.squares);
-    const sportEvent = await db.sportEvent.findFirst({ where: { id: squareUpdate.eventId } });
-    if (!sportEvent) {
-      throw new Error("Sport event not found");
-    }
-    await db.sportEvent.update({
-      where: { id: squareUpdate.eventId },
-      data: {
-        lastUpdatedData: JSON.stringify(squareUpdate.lastEvaluatedEvent)
-      }
-    });
     return playersUpdated;
   }));
 
@@ -160,19 +151,7 @@ async function updateSquares(input: HockeySquareData[]) {
     });
 }
 
-export function evaluateSquares(squareInfos: { eventId: string; hockeySquareData: { currentValue: number; skaterType: SkaterType; stat: HockeyStat; value: number; playerId: number | undefined; teamId: number | undefined; squareId: string; }[]; pbp: PlayByPlayResponse | undefined; lastEvaluatedEvent: { period: number; timeInPeriod: string; }; }[]) {
-  return squareInfos.map(({ hockeySquareData, pbp, lastEvaluatedEvent, eventId }) => {
-
-    const updatedSquares = evaluate(hockeySquareData, pbp!, lastEvaluatedEvent);
-    return {
-      squares: updatedSquares.squares,
-      eventId,
-      lastEvaluatedEvent: updatedSquares.lastEvaluatedEvent,
-    };
-  });
-}
-
-export async function getSquaresToEvaluate() {
+export async function getEventsToEvaluate() {
   const sportEvents = await fetchSportEventsFromDb();
   console.log('Got sport events', sportEvents.length);
   async function fetchNhlRequests(nhlGameId: string) {

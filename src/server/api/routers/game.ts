@@ -137,6 +137,7 @@ export const gameRouter = createTRPCRouter({
       data: {
         gameId: game.id,
         userId: ctx.session.user.id,
+        rerollsLeft: 25
       }
     });
 

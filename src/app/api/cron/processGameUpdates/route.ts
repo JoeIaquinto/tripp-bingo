@@ -1,9 +1,9 @@
 
 import { type NextRequest, NextResponse } from 'next/server';
+import { evaluate } from '~/lib/square-engine/square-interpreter';
 
 import { 
-  getSquaresToEvaluate,
-  evaluateSquares,
+  getEventsToEvaluate as getEventsToEvaluate,
   updateSquaresAndEvent,
   updateBingosForPlayers
 } from '~/lib/square-engine/square-updates';
@@ -20,10 +20,18 @@ export async function GET(req : NextRequest) {
   }
   console.log('Processing game updates');
 
-  const squareInfos = await getSquaresToEvaluate();
-  console.log('Got squares to evaluate', squareInfos.length);
-  const updatedSquares = evaluateSquares(squareInfos);
-  console.log('Evaluated squares', updatedSquares.length);
+  const squareInfos = await getEventsToEvaluate();
+  console.log('Got events to evaluate', squareInfos.length);
+  const updatedSquares = squareInfos.map(({ hockeySquareData, pbp, lastEvaluatedEvent, eventId }) => {
+    console.log('Evaluating event', eventId, `${pbp?.awayTeam.name.default}@${pbp?.homeTeam.name.default}`)
+    const updatedSquares = evaluate(hockeySquareData, pbp!, lastEvaluatedEvent);
+    console.log('Updated squares', updatedSquares.squares.length);
+    return {
+      squares: updatedSquares.squares,
+      eventId,
+      lastEvaluatedEvent: updatedSquares.lastEvaluatedEvent,
+    };
+  });;
   const updatedPlayers = await updateSquaresAndEvent(updatedSquares);
   console.log('Updated squares and events', updatedPlayers.length);
   const updatedPlayerBingos = await updateBingosForPlayers(updatedPlayers);

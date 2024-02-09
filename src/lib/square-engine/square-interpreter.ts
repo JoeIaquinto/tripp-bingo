@@ -123,7 +123,7 @@ export function evaluate(
   const { period, timeInPeriod } = lastEvaluatedEvent;
   const { plays } = pbp;
   const time = dayjs(timeInPeriod, 'mm:ss');
-  const filteredPlays = plays.filter(x => x.period >= period && dayjs(x.timeInPeriod, 'mm:ss') > time);
+  const filteredPlays = plays.filter(x => x.period >= period && dayjs(x.timeInPeriod, 'mm:ss') < time);
 
   const updatedSquares = filteredPlays.flatMap(play => {
     const playType = play.typeDescKey;
