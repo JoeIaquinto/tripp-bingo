@@ -125,49 +125,70 @@ export function evaluate(
   const time = dayjs(timeInPeriod, 'mm:ss');
   const filteredPlays = plays.filter(x => x.period >= period && dayjs(x.timeInPeriod, 'mm:ss') < time);
 
+  console.log("Filtered plays count: ", filteredPlays.length);
   const updatedSquares = filteredPlays.flatMap(play => {
     const playType = play.typeDescKey;
+    console.log({
+      playType,
+      period: play.period,
+      timeInPeriod: play.timeInPeriod
+    })
+    let updated: HockeySquareData[] = [];
     switch(playType) {
       case 'faceoff': {
-        return processFaceoff(play, squares);
+        updated = processFaceoff(play, squares);
+        break;
       }
       case 'hit': {
-        return processHit(play, squares);
+        updated = processHit(play, squares);
+        break;
       }
       case 'stoppage': {
-        return processStoppage(play, squares);
+        updated = processStoppage(play, squares);
+        break;
       }
       case 'blocked-shot': {
-        return processBlockedShot(play, squares, pbp);
+        updated = processBlockedShot(play, squares, pbp);
+        break;
       }
       case 'penalty': {
-        return processPenalty(play, squares);
+        updated = processPenalty(play, squares);
+        break;
       }
       case 'giveaway': {
-        return processGiveaway(play, squares);
+        updated = processGiveaway(play, squares);
+        break;
       }
       case 'shot-on-goal': {
-        return processShotOnGoal(play, squares);
+        updated = processShotOnGoal(play, squares);
+        break;
       }
       case 'takeaway': {
-        return processTakeaway(play, squares);
+        updated = processTakeaway(play, squares);
+        break;
       }
       case 'goal': {
-        return processGoal(play, squares, pbp);
+        updated = processGoal(play, squares, pbp);
+        break;
       }
       case 'penalty': {
-        return processPenalty(play, squares);
+        updated = processPenalty(play, squares);
+        break;
       }
       case 'missed-shot': {
-        return processMissedShot(play, squares);
+        updated = processMissedShot(play, squares);
+        break;
       }
       default: {
-        return [];
+        updated = [];
       }
     }
+    console.log("Updated squares: ", updated);
+    return updated;
   });
 
   const lastPlay = filteredPlays[-1];
+  console.log("Last play: ", lastPlay);
   return {
     squares: updatedSquares,
     lastEvaluatedEvent: { period: lastPlay?.period ?? period, timeInPeriod: lastPlay?.timeInPeriod ?? timeInPeriod}
