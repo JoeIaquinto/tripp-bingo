@@ -112,6 +112,10 @@ export function generate(squareText: BaseHockeySquareData, team: TeamLandingInfo
   }
 }
 
+function parsePeriodTime(time: string) {
+  return parseInt(time.substring(0,2)) * 60 + parseInt(time.substring(3,5));
+}
+
 export function evaluate(
   squares: HockeySquareData[],
   pbp: PlayByPlayResponse,
@@ -122,8 +126,10 @@ export function evaluate(
 
   const { period, timeInPeriod } = lastEvaluatedEvent;
   const { plays } = pbp;
-  const time = dayjs(timeInPeriod, 'mm:ss');
-  const filteredPlays = plays.filter(x => x.period >= period && dayjs(x.timeInPeriod, 'mm:ss') < time);
+  
+  console.log(plays);
+  const time =  parsePeriodTime(timeInPeriod);
+  const filteredPlays = plays.filter(x => x.period >= period && parsePeriodTime(x.timeInPeriod) > time);
 
   console.log("Filtered plays count: ", filteredPlays.length);
   const updatedSquares = filteredPlays.flatMap(play => {
@@ -187,11 +193,23 @@ export function evaluate(
     return updated;
   });
 
-  const lastPlay = filteredPlays[-1];
+  // get last event by period and time
+  const lastPlay = plays.reduce((acc, play) => {
+    if (play.period > acc.period) {
+      return play;
+    }
+    if (play.period === acc.period && parsePeriodTime(play.timeInPeriod) > parsePeriodTime(acc.timeInPeriod)) {
+      return play;
+    }
+    return acc;
+  }, { period: 1, timeInPeriod: '00:00' });
   console.log("Last play: ", lastPlay);
   return {
     squares: updatedSquares,
-    lastEvaluatedEvent: { period: lastPlay?.period ?? period, timeInPeriod: lastPlay?.timeInPeriod ?? timeInPeriod}
+    lastEvaluatedEvent: {
+      period: lastPlay.period,
+      timeInPeriod: lastPlay.timeInPeriod
+    }
   }
 }
 
