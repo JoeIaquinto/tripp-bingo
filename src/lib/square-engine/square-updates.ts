@@ -122,7 +122,7 @@ async function updateSquares(input: HockeySquareData[]) {
       where: { id: square.squareId! },
       data: {
         currentValue: square.currentValue,
-        hasOccured: square.currentValue >= square.value,
+        hasOccured: square.currentValue > square.value,
       },
       select: {
         playersWithSquare: {
