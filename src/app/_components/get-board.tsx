@@ -1,7 +1,7 @@
 "use client"
 import { api } from "~/trpc/react";
 
-export default function GetBoard({id, guestName}: {id: number, guestName: string | undefined}) {
+export default function GetBoard({id, guestName}: {id: number, guestName?: string | undefined}) {
   const {data, isFetching, error} = !guestName ? api.game.getGameSquares.useQuery( { id }, {
     refetchInterval: 15000,
     refetchOnMount: false,
