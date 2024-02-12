@@ -44,7 +44,7 @@ export const authOptions: NextAuthOptions = {
       user: {
         ...session.user,
         id: user.id,
-        role: user.email === "iaquinto.joe@gmail.com" ? 'admin' : 'user'
+        role: user.email === env.ADMIN_EMAIL ? 'admin' : 'user'
       },
     }),
   },
