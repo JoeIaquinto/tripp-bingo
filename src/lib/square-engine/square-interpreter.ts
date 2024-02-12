@@ -1,7 +1,7 @@
-import { type PlayerLandingStats, type TeamLandingInfo } from "../nhl-api/get-landing";
+import { type LandingResponse, type PlayerLandingStats, type TeamLandingInfo } from "../nhl-api/get-landing";
 import type * as gen from "random-seed";
 import { type BlockedShotEvent, type FaceoffEvent, type GiveawayEvent, type GoalEvent, type HitEvent, type MissedShotEvent, type PenaltyEvent, type Play, type ShotOnGoalEvent, type StoppageEvent, type TakeawayEvent, type PlayByPlayResponse } from "../nhl-api/get-scoreboard";
-import dayjs from "dayjs";
+import { getRandomElement } from "../rand";
 
 /* 
   What information can we get out of the PBP?
@@ -81,7 +81,81 @@ export interface HockeySquareData {
   skaterType: SkaterType;
 }
 
-export function generate(squareText: BaseHockeySquareData, team: TeamLandingInfo, player: PlayerLandingStats | undefined, rand: gen.RandomSeed): HockeySquareData {
+export function generateV2(baseSquares: BaseHockeySquareData[], event: LandingResponse, rand: gen.RandomSeed): HockeySquareData {
+
+  
+  const square = getRandomElement(baseSquares, rand);
+  
+  if (square.skaterType === 'N/A') {
+    return {
+      value: rand.intBetween(square.rangeMin, square.rangeMax) + 0.5,
+      stat: square.stat,
+      skaterType: square.skaterType,
+      currentValue: 0,
+    }
+  }
+  const { homeTeam, awayTeam, matchup } = event;
+  const useHome = rand.random() > 0.5;
+  const team = useHome ? homeTeam : awayTeam;
+
+  if (square.skaterType === 'Team') {
+    return {
+      value: rand.intBetween(square.rangeMin, square.rangeMax) + 0.5,
+      stat: square.stat,
+      teamId: team.id,
+      skaterType: square.skaterType,
+      currentValue: 0,
+    }
+  }
+
+  const players = matchup.skaterSeasonStats
+    .filter(x => x.teamId === team.id)
+    .filter(x => x.position === square.skaterType || (square.skaterType === 'F' ? (x.position === 'L' || x.position === 'R' || x.position === 'C') : false));
+  
+  const playersSortedByStat = players.sort((a, b) => {
+    switch (square.stat) {
+      case 'won-faceoff':
+      case 'won-offensive-zone-faceoff':
+      case 'won-defensive-zone-faceoff':
+        return b.faceoffWinPctg - a.faceoffWinPctg;
+      case 'hit':
+        return b.hits - a.hits;
+      case 'shot-on-goal':
+        return b.shots - a.shots;
+      case 'short-handed-goal':
+      case 'goal':
+        return b.goals - a.goals;
+      case 'power-play-goal':
+        return b.powerPlayGoals - a.powerPlayGoals;
+      case 'point':
+        return b.points - a.points;
+      case 'pim':
+      case 'major-penalty':
+      case 'penalty':
+      case 'stick-infraction':
+        return b.pim - a.pim;
+      case 'penalty-drawn':
+      case 'pk-block':
+        return a.pim - b.pim;
+      default:
+        return 0;
+    }
+  })
+  .slice(0, players.length / 2); // take top 50% of players on the team for the statsitic
+
+  const player = getRandomElement(playersSortedByStat, rand);
+  return {
+    value: rand.intBetween(square.rangeMin, square.rangeMax) + 0.5,
+    stat: square.stat,
+    playerId: player.playerId,
+    teamId: team.id,
+    skaterType: square.skaterType,
+    currentValue: 0,
+  }
+
+}
+
+export function generate({ squareText, team, player, rand }: { squareText: BaseHockeySquareData; team: TeamLandingInfo; player: PlayerLandingStats | undefined; rand: gen.RandomSeed; }): HockeySquareData {
   const { skaterType, stat, rangeMin, rangeMax } = squareText;
 
   if (skaterType === 'N/A') {
@@ -116,6 +190,11 @@ function parsePeriodTime(time: string) {
   return parseInt(time.substring(0,2)) * 60 + parseInt(time.substring(3,5));
 }
 
+interface SquareUpdate {
+  square: HockeySquareData;
+  value: number;
+}
+
 export function evaluate(
   squares: HockeySquareData[],
   pbp: PlayByPlayResponse,
@@ -132,61 +211,68 @@ export function evaluate(
   const filteredPlays = plays.filter(x => x.period >= period && parsePeriodTime(x.timeInPeriod) > time);
 
   console.log("Filtered plays count: ", filteredPlays.length);
-  const updatedSquares = filteredPlays.flatMap(play => {
+  const updated: SquareUpdate[] = squares.map(square => {
+    return {
+      square,
+      value: square.currentValue
+    }
+  });
+
+  filteredPlays.forEach(play => {
     const playType = play.typeDescKey;
     console.log({
       playType,
       period: play.period,
       timeInPeriod: play.timeInPeriod
     })
-    let updated: HockeySquareData[] = [];
+
     switch(playType) {
       case 'faceoff': {
-        updated = processFaceoff(play, squares);
+        processFaceoff(play, updated);
         break;
       }
       case 'hit': {
-        updated = processHit(play, squares);
+        processHit(play, updated);
         break;
       }
       case 'stoppage': {
-        updated = processStoppage(play, squares);
+        processStoppage(play, updated);
         break;
       }
       case 'blocked-shot': {
-        updated = processBlockedShot(play, squares, pbp);
+        processBlockedShot(play, updated, pbp);
         break;
       }
       case 'penalty': {
-        updated = processPenalty(play, squares);
+        processPenalty(play, updated);
         break;
       }
       case 'giveaway': {
-        updated = processGiveaway(play, squares);
+        processGiveaway(play, updated);
         break;
       }
       case 'shot-on-goal': {
-        updated = processShotOnGoal(play, squares);
+        processShotOnGoal(play, updated);
         break;
       }
       case 'takeaway': {
-        updated = processTakeaway(play, squares);
+        processTakeaway(play, updated);
         break;
       }
       case 'goal': {
-        updated = processGoal(play, squares, pbp);
+        processGoal(play, updated, pbp);
         break;
       }
       case 'penalty': {
-        updated = processPenalty(play, squares);
+        processPenalty(play, updated);
         break;
       }
       case 'missed-shot': {
-        updated = processMissedShot(play, squares);
+        processMissedShot(play, updated);
         break;
       }
       default: {
-        updated = [];
+        
       }
     }
     console.log("Updated squares: ", updated);
@@ -205,7 +291,12 @@ export function evaluate(
   }, { period: 1, timeInPeriod: '00:00' });
   console.log("Last play: ", lastPlay);
   return {
-    squares: updatedSquares,
+    squares: updated.map(x => {
+      return {
+        ...x.square,
+        currentValue: x.value
+      }
+    }),
     lastEvaluatedEvent: {
       period: lastPlay.period,
       timeInPeriod: lastPlay.timeInPeriod
@@ -213,418 +304,337 @@ export function evaluate(
   }
 }
 
-function processFaceoff(play: Play, squares: HockeySquareData[]): HockeySquareData[] {
+function processFaceoff(play: Play, update: SquareUpdate[]) {
   const details = play.details as FaceoffEvent;
-  const filteredSquares = squares.filter(x => x.stat === 'won-faceoff' || x.stat === 'won-offensive-zone-faceoff' || x.stat === 'won-defensive-zone-faceoff');
-  return filteredSquares.flatMap(square => {
-    const updatedSquares: HockeySquareData[] = [];
-    if (square.stat === 'won-faceoff') {
-      if (square.playerId && details.winningPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+  const wonFaceoffSquares = update.filter(x => x.square.stat === 'won-faceoff');
+  const wonOffensiveFaceoffSquares = update.filter(x => x.square.stat === 'won-offensive-zone-faceoff' && details.zoneCode === 'O');
+  const wonDefensiveFaceoffSquares = update.filter(x => x.square.stat === 'won-defensive-zone-faceoff' && details.zoneCode === 'D');
+
+  wonFaceoffSquares.forEach(update => {
+    if (update.square.playerId && details.winningPlayerId === update.square.playerId) {
+      update.value += 1;
     }
-    if (square.stat === 'won-offensive-zone-faceoff' && details.zoneCode === 'O') {
-      if (square.playerId && details.winningPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+    if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+      update.value += 1;
     }
-    if (square.stat === 'won-defensive-zone-faceoff' && details.zoneCode === 'D') {
-      if (square.playerId && details.winningPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+  });
+  wonOffensiveFaceoffSquares.forEach(update => {
+    if (update.square.playerId && details.winningPlayerId === update.square.playerId) {
+      update.value += 1;
     }
-    return updatedSquares;
+    if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+      update.value += 1;
+    }
+  });
+  wonDefensiveFaceoffSquares.forEach(update => {
+    if (update.square.playerId && details.winningPlayerId === update.square.playerId) {
+      update.value += 1;
+    }
+    if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+      update.value += 1;
+    }
   });
 }
 
-function processHit(play: Play, squares: HockeySquareData[]): HockeySquareData[] {
+function processHit(play: Play, update: SquareUpdate[]) {
   const details = play.details as HitEvent;
-  const filteredSquares = squares.filter(x => x.stat === 'hit' || x.stat === 'hittee');
-  return filteredSquares.flatMap(square => {
-    const updatedSquares: HockeySquareData[] = [];
-    if (square.stat === 'hit') {
-      if (square.playerId && details.hittingPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+  const hitSquares = update.filter(x => x.square.stat === 'hit');
+  const hitteeSquares = update.filter(x => x.square.stat === 'hittee');
+
+  hitSquares.forEach(update => {
+    if (update.square.playerId && details.hittingPlayerId === update.square.playerId) {
+      update.value += 1;
     }
-    if (square.stat === 'hittee') {
-      if (square.playerId && details.hitteePlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+    if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+      update.value += 1;
     }
-    return updatedSquares;
+  });
+  hitteeSquares.forEach(update => {
+    if (update.square.playerId && details.hitteePlayerId === update.square.playerId) {
+      update.value += 1;
+    }
+    if (!update.square.playerId && details.eventOwnerTeamId !== update.square.teamId) {
+      update.value += 1;
+    }
   });
 }
 
-function processStoppage(play: Play, squares: HockeySquareData[]): HockeySquareData[] {
+function processStoppage(play: Play, updates: SquareUpdate[]) {
   const details = play.details as StoppageEvent;
-  function match(stat: HockeyStat) : boolean {
-    if (stat === 'offside' && details.reason === 'offside') {
-      return true;
+  switch (details.reason) {
+    case 'offside': {
+      updates.filter(x => x.square.stat === 'offside').forEach(update => {
+        update.value += 1;
+      })
     }
-    if (stat === 'icing' && details.reason === 'icing') { 
-      return true;
+    case 'icing': {
+      updates.filter(x => x.square.stat === 'icing').forEach(update => {
+        update.value += 1;
+      })
     }
-    if (stat === 'puck-out-of-play' && (details.reason === 'puck-in-netting' || details.reason === 'puck-in-crowd' || details.reason === 'puck-in-benches')) {
-      return true;
+    case 'puck-in-netting':
+    case 'puck-in-crowd':
+    case 'puck-in-benches': {
+      updates.filter(x => x.square.stat === 'puck-out-of-play').forEach(update => {
+        update.value += 1;
+      })
     }
-    return false;
   }
-  return squares.filter(x => match(x.stat)).map(x => {
-    return {
-      ...x,
-      currentValue: x.currentValue + 1
-    }
-  });
 }
 
-function processBlockedShot(play: Play, squares: HockeySquareData[], pbp: PlayByPlayResponse): HockeySquareData[] {
+function processBlockedShot(play: Play, update: SquareUpdate[], pbp: PlayByPlayResponse) {
   const details = play.details as BlockedShotEvent;
-  const filteredSquares = squares.filter(x => x.stat === 'blocked-shot' || x.stat === 'shot-blocked' || x.stat === 'pk-block');
-  return filteredSquares.flatMap(square => {
-    const updatedSquares: HockeySquareData[] = [];
-    if (square.stat === 'blocked-shot') {
-      if (square.playerId && details.blockingPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+
+  const blockedShot = update.filter(x => x.square.stat === 'blocked-shot');
+  const shotBlocked = update.filter(x => x.square.stat === 'shot-blocked');
+
+  blockedShot.forEach(update => {
+    if (update.square.playerId && details.blockingPlayerId === update.square.playerId) {
+      update.value += 1;
     }
-    if (square.stat === 'shot-blocked') {
-      if (square.playerId && details.shooterPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      if (!square.playerId && details.eventOwnerTeamId !== square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+    if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+      update.value += 1;
     }
-    if (square.stat === 'pk-block') {
-      if (square.playerId && details.blockingPlayerId === square.playerId && isOnPk(square.teamId!, play, pbp)) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-    }
-    return updatedSquares;
   });
+
+  shotBlocked.forEach(update => {
+    if (update.square.playerId && details.shooterPlayerId === update.square.playerId) {
+      update.value += 1;
+    }
+    if (!update.square.playerId && details.eventOwnerTeamId !== update.square.teamId) {
+      update.value += 1;
+    }
+  });
+
+  if (isOnPk(details.eventOwnerTeamId, play, pbp)) {
+    update.filter(x => x.square.stat === 'pk-block').forEach(update => {
+      if (update.square.playerId && details.blockingPlayerId === update.square.playerId) {
+        update.value += 1;
+      }
+      if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+        update.value += 1;
+      }
+    });
+  }
 }
 
 const stickInfractionDesc = ['slashing', 'hooking', 'tripping', 'high-sticking']
 
-function processPenalty(play: Play, squares: HockeySquareData[]): HockeySquareData[] {
+function processPenalty(play: Play, update: SquareUpdate[]) {
   const details = play.details as PenaltyEvent;
-  const filteredSquares = squares.filter(x => x.stat === 'penalty' || x.stat === 'stick-infraction' || x.stat === 'pim' || x.stat === 'major-penalty' || x.stat === 'penalty-drawn');
-  return filteredSquares.flatMap(square => {
-    const updatedSquares: HockeySquareData[] = [];
-    if (square.stat === 'penalty') {
-      if (square.playerId && details.committedByPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+  const penalty = update.filter(x => x.square.stat === 'penalty');
+  const pim = update.filter(x => x.square.stat === 'pim');
+  const penaltyDrawn = update.filter(x => x.square.stat === 'penalty-drawn');
+
+  penalty.forEach(update => {
+    if (update.square.playerId && details.committedByPlayerId === update.square.playerId) {
+      update.value += 1;
     }
-    if (square.stat === 'stick-infraction' && stickInfractionDesc.some(x => x === details.descKey)) {
-      if (square.playerId && details.committedByPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+    if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+      update.value += 1;
     }
-    if (square.stat === 'pim') {
-      if (square.playerId && details.committedByPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + details.duration
-        })
-      }
-    }
-    if (square.stat === 'major-penalty' && details.duration >= 5) {
-      if (square.playerId && details.committedByPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-    }
-    if (square.stat === 'penalty-drawn') {
-      if (square.playerId && details.drawnByPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-    }
-    return updatedSquares;
   });
+
+  pim.forEach(update => {
+    if (update.square.playerId && details.committedByPlayerId === update.square.playerId) {
+      update.value += details.duration;
+    }
+    if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+      update.value += details.duration;
+    }
+  });
+
+  penaltyDrawn.forEach(update => {
+    if (update.square.playerId && details.drawnByPlayerId === update.square.playerId) {
+      update.value += 1;
+    }
+    if (!update.square.playerId && details.eventOwnerTeamId !== update.square.teamId) {
+      update.value += 1;
+    }
+  });
+
+  if (stickInfractionDesc.some(x => x === details.descKey)) {
+    update.filter(x => x.square.stat === 'stick-infraction').forEach(update => {
+      if (update.square.playerId && details.committedByPlayerId === update.square.playerId) {
+        update.value += 1;
+      }
+      if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+        update.value += 1;
+      }
+    });
+  }
+
+  if (details.duration >= 5) {
+    update.filter(x => x.square.stat === 'major-penalty').forEach(update => {
+      if (update.square.playerId && details.committedByPlayerId === update.square.playerId) {
+        update.value += 1;
+      }
+      if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+        update.value += 1;
+      }
+    });
+  }
 }
 
-function processGiveaway(play: Play, squares: HockeySquareData[]): HockeySquareData[] {
+function processGiveaway(play: Play, updates: SquareUpdate[]) {
   const details = play.details as GiveawayEvent;
-  const filteredSquares = squares.filter(x => x.stat === 'giveaway' || x.stat === 'defensive-zone-giveaway' || x.stat === 'offensive-zone-giveaway');
-  return filteredSquares.flatMap(square => {
-    const updatedSquares: HockeySquareData[] = [];
-    if (square.stat === 'giveaway') {
-      if (square.playerId && details.playerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+  const giveaway = updates.filter(x => x.square.stat === 'giveaway');
+
+  giveaway.forEach(update => {
+    if (update.square.playerId && details.playerId === update.square.playerId) {
+      update.value += 1;
     }
-    if (square.stat === 'defensive-zone-giveaway' && details.zoneCode === 'D') {
-      if (square.playerId && details.playerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      else if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+    if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+      update.value += 1;
     }
-    if (square.stat === 'offensive-zone-giveaway' && details.zoneCode === 'O') {
-      if (square.playerId && details.playerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      else if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-    }
-    return updatedSquares;
   });
+  if (details.zoneCode === 'D') {
+    (updates.filter(x => x.square.stat === 'defensive-zone-giveaway')).forEach(update => {
+      if (update.square.playerId && details.playerId === update.square.playerId) {
+        update.value += 1;
+      }
+      if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+        update.value += 1;
+      }
+    });
+  }
+  if (details.zoneCode === 'O') {
+    (updates.filter(x => x.square.stat === 'offensive-zone-giveaway')).forEach(update => {
+      if (update.square.playerId && details.playerId === update.square.playerId) {
+        update.value += 1;
+      }
+      if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+        update.value += 1;
+      }
+    });
+  }
 }
 
-function processShotOnGoal(play: Play, squares: HockeySquareData[]): HockeySquareData[] {
+const shotTypeToStat: Partial<Record<string, string>> = {
+  'wrist': 'shot-wrist',
+  'tip-in': 'shot-tip',
+  'snap': 'shot-snap',
+  'slap': 'shot-slap',
+  'backhand': 'shot-backhand'
+};
+
+function processShotOnGoal(play: Play, updates: SquareUpdate[]) {
   const details = play.details as ShotOnGoalEvent;
-  const filteredSquares = squares.filter(x => x.stat === 'shot-on-goal' || x.stat === 'shot-from-defensive-zone' || x.stat === 'shot-wrist' || x.stat === 'shot-tip' || x.stat === 'shot-snap' || x.stat === 'shot-slap' || x.stat === 'shot-backhand');
-  return filteredSquares.flatMap(square => {
-    const updatedSquares: HockeySquareData[] = [];
-    if (square.stat === 'shot-on-goal') {
-      if (square.playerId && details.shootingPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+  const shotOnGoal = updates.filter(x => x.square.stat === 'shot-on-goal');
+
+  updates.filter(x => x.square.stat === shotTypeToStat[details.shotType]).forEach(update => {
+    if (update.square.playerId && details.shootingPlayerId === update.square.playerId) {
+      update.value += 1;
     }
-    if (square.stat === 'shot-from-defensive-zone' && details.zoneCode === 'D') {
-      if (square.playerId && details.shootingPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+    if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+      update.value += 1;
     }
-    const shotTypeToStat: Partial<Record<HockeyStat, string>> = {
-      'shot-wrist': 'wrist',
-      'shot-tip': 'tip-in',
-      'shot-snap': 'snap',
-      'shot-slap': 'slap',
-      'shot-backhand': 'backhand'
-    }
-    if (shotTypeToStat[square.stat] === details.shotType) {
-      if (square.playerId && details.shootingPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-      if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-    }
-    return updatedSquares;
   });
+  shotOnGoal.forEach(update => {
+    if (update.square.playerId && details.shootingPlayerId === update.square.playerId) {
+      update.value += 1;
+    }
+    if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+      update.value += 1;
+    }
+  });
+  if (details.zoneCode === 'D') {
+    (updates.filter(x => x.square.stat === 'shot-from-defensive-zone')).forEach(update => {
+      if (update.square.playerId && details.shootingPlayerId === update.square.playerId) {
+        update.value += 1;
+      }
+      if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+        update.value += 1;
+      }
+    });
+  }
 }
 
-function processTakeaway(play: Play, squares: HockeySquareData[]): HockeySquareData[] {
+function processTakeaway(play: Play, updates: SquareUpdate[]) {
   const details = play.details as TakeawayEvent;
-  const filteredSquares = squares.filter(x => x.stat === 'takeaway' || x.stat === 'defensive-zone-takeaway' || x.stat === 'offensive-zone-takeaway');
-  return filteredSquares.flatMap(square => {
-    const updatedSquares: HockeySquareData[] = [];
-    if (square.stat === 'takeaway') {
-      if (square.playerId && details.playerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+  const takeaway = updates.filter(x => x.square.stat === 'takeaway');
+
+  takeaway.forEach(update => {
+    if (update.square.playerId && details.playerId === update.square.playerId) {
+      update.value += 1;
     }
-    if (square.stat === 'defensive-zone-takeaway' && details.zoneCode === 'D') {
-      if (square.playerId && details.playerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
+    if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+      update.value += 1;
     }
-    if (square.stat === 'offensive-zone-takeaway' && details.zoneCode === 'O') {
-      if (square.playerId && details.playerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-    }
-    return updatedSquares;
   });
+
+  if (details.zoneCode === 'D') {
+    (updates.filter(x => x.square.stat === 'defensive-zone-takeaway')).forEach(update => {
+      if (update.square.playerId && details.playerId === update.square.playerId) {
+        update.value += 1;
+      }
+      if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+        update.value += 1;
+      }
+    });
+  }
+  if (details.zoneCode === 'O') {
+    (updates.filter(x => x.square.stat === 'offensive-zone-takeaway')).forEach(update => {
+      if (update.square.playerId && details.playerId === update.square.playerId) {
+        update.value += 1;
+      }
+      if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+        update.value += 1;
+      }
+    });
+  }
 }
 
-function processGoal(play: Play, squares: HockeySquareData[], pbp: PlayByPlayResponse): HockeySquareData[] {
+function processGoal(play: Play, updates: SquareUpdate[], pbp: PlayByPlayResponse) {
   const details = play.details as GoalEvent;
-  const filteredSquares = squares.filter(x => x.stat === 'goal' || x.stat === 'point' || x.stat === 'power-play-goal' || x.stat === 'short-handed-goal');
-  return filteredSquares.flatMap(square => {
-    const updatedSquares: HockeySquareData[] = [];
-    if (square.stat === 'goal') {
-      if (square.playerId && details.scoringPlayerId === square.playerId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
+  const goal = updates.filter(x => x.square.stat === 'goal');
+  const point = updates.filter(x => x.square.stat === 'point');
+
+  goal.forEach(update => {
+    if (update.square.stat === 'goal') {
+      if (update.square.playerId && details.scoringPlayerId === update.square.playerId) {
+        update.value += 1;
       }
-      if (!square.playerId && details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
+      if (!update.square.playerId && details.eventOwnerTeamId === update.square.teamId) {
+        update.value += 1;
       }
     }
-    if (square.stat === 'point') {
-      if (square.playerId && (details.scoringPlayerId == square.playerId || details.assist1PlayerId === square.playerId || details.assist2PlayerId === square.playerId)) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
-      }
-    }
-    if (square.stat === 'power-play-goal' && details.eventOwnerTeamId === square.teamId && isOnPp(square.teamId, play, pbp)) {
-      updatedSquares.push({
-        ...square,
-        currentValue: square.currentValue + 1
-      })
-    }
-    if (square.stat === 'short-handed-goal' && details.eventOwnerTeamId === square.teamId && isOnPk(square.teamId, play, pbp)) {
-      updatedSquares.push({
-        ...square,
-        currentValue: square.currentValue + 1
-      })
-    }
-    return updatedSquares;
   });
+
+  point.forEach(update => {
+    if (update.square.playerId && (details.scoringPlayerId == update.square.playerId || details.assist1PlayerId === update.square.playerId || details.assist2PlayerId === update.square.playerId)) {
+      update.value += 1;
+    }
+  });
+
+  if (isOnPp(details.eventOwnerTeamId, play, pbp)) {
+    (updates.filter(x => x.square.stat === 'power-play-goal')).forEach(update => {
+      if (update.square.teamId === details.eventOwnerTeamId) {
+        update.value += 1;
+      }
+    });
+  }
+  if (isOnPk(details.eventOwnerTeamId, play, pbp)) {
+    (updates.filter(x => x.square.stat === 'short-handed-goal')).forEach(update => {
+      if (update.square.teamId === details.eventOwnerTeamId) {
+        update.value += 1;
+      }
+    });
+  }
 }
 
-function processMissedShot(play: Play, squares: HockeySquareData[]): HockeySquareData[] {
+function processMissedShot(play: Play, updates: SquareUpdate[]) {
   const details = play.details as MissedShotEvent;
-  const filteredSquares = squares.filter(x => x.stat === 'post');
-  return filteredSquares.flatMap(square => {
-    const updatedSquares: HockeySquareData[] = [];
-    if (details.reason === 'hit-crossbar' || details.reason === 'hit-post') {
-      if (details.eventOwnerTeamId === square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
+  if (details.reason === 'hit-crossbar' || details.reason === 'hit-post') {
+    updates.filter(x => x.square.stat === 'post').forEach(update => {
+      if (details.eventOwnerTeamId === update.square.teamId) {
+        update.value += 1;
       }
-      if (!square.teamId) {
-        updatedSquares.push({
-          ...square,
-          currentValue: square.currentValue + 1
-        })
+      if (!update.square.teamId) {
+        update.value += 1;
       }
-    }
-    return updatedSquares;
-  });
+    });
+  }
 }
 
 function getTeamSide(teamId: number, play: Play, gameInfo: PlayByPlayResponse) {

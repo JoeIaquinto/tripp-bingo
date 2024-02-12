@@ -20,9 +20,9 @@ export async function GET(req : NextRequest) {
   }
   console.log('Processing game updates');
 
-  const squareInfos = await getEventsToEvaluate();
-  console.log('Got events to evaluate', squareInfos.length);
-  const updatedSquares = squareInfos.map(({ hockeySquareData, pbp, lastEvaluatedEvent, eventId }) => {
+  const events = await getEventsToEvaluate();
+  console.log('Got events to evaluate', events.length);
+  const updatedSquares = events.map(({ hockeySquareData, pbp, lastEvaluatedEvent, eventId }) => {
     console.log('Evaluating event', eventId, `${pbp?.awayTeam.name.default}@${pbp?.homeTeam.name.default}`)
     const updatedSquares = evaluate(hockeySquareData, pbp!, lastEvaluatedEvent);
     console.log('Updated squares', updatedSquares.squares.length);

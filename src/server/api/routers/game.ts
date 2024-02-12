@@ -167,7 +167,7 @@ export const gameRouter = createTRPCRouter({
           randomPlayer = getRandomElement(players, rand);
         } 
 
-        const squareData = generate(baseSquare as BaseHockeySquareData, selectedTeam, randomPlayer, rand);
+        const squareData = generate({ squareText: baseSquare as BaseHockeySquareData, team: selectedTeam, player: randomPlayer, rand });
         if(!similarExists({ squares: newSquares, square: squareData })) {
           const description = formatSquareDescription(baseSquare, randomPlayer, squareData, selectedTeam, otherTeam, homeTeamSelected);
 
@@ -288,7 +288,7 @@ export const gameRouter = createTRPCRouter({
           .filter(x => x.position === baseSquare.skaterType || (baseSquare.skaterType === 'F' ? (x.position === 'L' || x.position === 'R' || x.position === 'C') : false));
         randomPlayer = getRandomElement(players, rand);
       } 
-      const squareData = generate(baseSquare as BaseHockeySquareData, selectedTeam, randomPlayer, rand);
+      const squareData = generate({ squareText: baseSquare as BaseHockeySquareData, team: selectedTeam, player: randomPlayer, rand });
       
       if (!similarExists({ squares: existingSquareInfo, square: squareData })) {
 
