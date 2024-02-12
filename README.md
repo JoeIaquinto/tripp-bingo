@@ -1,5 +1,7 @@
 # Tripp Bingo
 
+https://tripp-bingo.vercel.app/
+
 This is a web application to celebrate the beloved color commentator who says crazy things, Tripp Tracy of Bally Sports South. 
 
 In the future the plan is for this application to support all sorts of self-ran and moderator ran bingo games for sports, television, pop culture, or any other social or current event.
