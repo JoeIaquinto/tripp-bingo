@@ -39,13 +39,14 @@ model BingoGame {
 model UserBingoGame {
     id        Int      @id @default(autoincrement())
     bingoGameId    Int
-    userId    String
+    userId    String?
+    userName String
     hasBingo Boolean @default(false)
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
     squares   UserBingoGameSquare[]
-    user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+    user      User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
     bingoGame BingoGame @relation(fields: [bingoGameId], references: [id], onDelete: Cascade)
     @@unique([userId, bingoGameId])

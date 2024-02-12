@@ -1,8 +1,11 @@
 "use client"
 import { api } from "~/trpc/react";
 
-export default function GetBoard({id}: {id: number}) {
-  const {data, isFetching, error} = api.game.getGameSquares.useQuery( { id }, {
+export default function GetBoard({id, guestName}: {id: number, guestName: string | undefined}) {
+  const {data, isFetching, error} = !guestName ? api.game.getGameSquares.useQuery( { id }, {
+    refetchInterval: 15000,
+    refetchOnMount: false,
+  }) : api.game.getGameSquaresGuest.useQuery( { id, name: guestName }, {
     refetchInterval: 15000,
     refetchOnMount: false,
   });
@@ -29,7 +32,7 @@ export default function GetBoard({id}: {id: number}) {
     <div className="container px-4 md:px-6">
       {gameInfo.data?.anyoneHasBingo ? 
         <div className="container flex flex-col items-center justify-items-center my-4">
-          <RenderBingoWinner winners={gameInfo.data.usersInGame.filter(x => x.hasBingo).map(x => x.name!)} />
+          <RenderBingoWinner winners={gameInfo.data.usersInGame.filter(x => x.hasBingo).map(x => x.name)} />
         </div> : null}
       <div className="flex flex-col items-center justify-items-center">
         <div className="grid grid-cols-5 gap-2 md:gap-4 w-full grid-rows-5">

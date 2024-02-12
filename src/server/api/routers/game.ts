@@ -7,7 +7,7 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "~/server/api/trpc";
-import { PrismaClient } from "@prisma/client";
+import { type PrismaClient } from "@prisma/client";
 import { getBingoSquares } from "./bingo-board";
 
 export const gameRouter = createTRPCRouter({
@@ -19,6 +19,33 @@ export const gameRouter = createTRPCRouter({
     });
     return game;
   }),
+
+  joinGuest: publicProcedure.input(z.object({
+    id: z.number(),
+    name: z.string().max(100).min(1),
+  }))
+    .mutation(async ({ ctx, input }) => {
+      const game = await ctx.db.bingoGame.findFirst({ where: { id: input.id } });
+      if (!game) {
+        throw new Error("Game not found");
+      }
+  
+      const randomSquareIds = await generateNewSquares(ctx.db, input.name, game.id)
+  
+      const userGame = await ctx.db.userBingoGame.create({
+        data: {
+          bingoGameId: game.id,
+          userName: input.name,
+          squares: {
+            createMany: {
+              data: randomSquareIds.map(x => ({ bingoSquareId: x })),
+            }
+          },
+        },
+      });
+  
+      return userGame;
+    }),
 
   joinGame: protectedProcedure.input(z.object({
     id: z.number(),
@@ -42,6 +69,7 @@ export const gameRouter = createTRPCRouter({
       data: {
         bingoGameId: game.id,
         userId: user.id,
+        userName: user.name!,
         squares: {
           createMany: {
             data: randomSquareIds.map(x => ({ bingoSquareId: x })),
@@ -53,7 +81,7 @@ export const gameRouter = createTRPCRouter({
     return userGame;
   }),
 
-  getGameInfo: protectedProcedure.input(z.object({
+  getGameInfo: publicProcedure.input(z.object({
     id: z.number(),
   })).query(async ({ ctx, input }) => {
     const game = await ctx.db.bingoGame.findUnique({ where: { id: input.id } });
@@ -64,11 +92,7 @@ export const gameRouter = createTRPCRouter({
       where: { bingoGameId: game.id },
       select: {
         hasBingo: true,
-        user: {
-          select: {
-            name: true,
-          }
-        },
+        userName: true,
         squares: {
           select: {
             bingoSquare: {
@@ -86,7 +110,7 @@ export const gameRouter = createTRPCRouter({
     const gameWithUserStatus = {
       game,
       usersInGame: usersInGame.map(x => ({
-        name: x.user.name,
+        name: x.userName,
         squaresActive: x.squares.filter(y => y.bingoSquare.isActive).length,
         hasBingo: x.hasBingo,
       })),
@@ -105,7 +129,7 @@ export const gameRouter = createTRPCRouter({
     return deleted;
   }),
 
-  listGames: protectedProcedure.query(async ({ ctx }) => {
+  listGames: publicProcedure.query(async ({ ctx }) => {
     const games = await ctx.db.bingoGame.findMany({
       select: {
         id: true,
@@ -118,7 +142,7 @@ export const gameRouter = createTRPCRouter({
       },
       where: {
         createdAt: {
-          gte: new Date(Date.now() - 1000 * 60 * 60 * 12)
+          gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)
         }
       }
     });
@@ -140,6 +164,55 @@ export const gameRouter = createTRPCRouter({
     
     const userGame = await ctx.db.userBingoGame.findFirst({
       where: { bingoGameId: input.id, userId: ctx.session.user.id },
+      select: {
+        squares: {
+          select: {
+            bingoSquare: {
+              select: {
+                content: true,
+                isActive: true
+              }
+            },
+            id: true,
+          },
+          orderBy: {
+            id: "asc"
+          }
+        },
+        hasBingo: true,
+      }
+    });
+    if (!userGame) {
+      throw new Error("User not in game");
+    }
+
+    // Get the indexes of the squares that are in a bingo
+    const indexOfBingos: number[] = [];
+    if (userGame.hasBingo) {
+      const squaresInBingo = getBingoSquares(userGame.squares.map(x => x.bingoSquare.isActive))
+      indexOfBingos.push(...squaresInBingo);
+    }
+
+    return {
+      hasBingo: userGame.hasBingo,
+      squares: userGame.squares.map((x, index) => {
+        return {
+          isActive: x.bingoSquare.isActive,
+          content: x.bingoSquare.content,
+          inBingo: indexOfBingos.includes(index)
+        }
+      })
+    };
+  }),
+
+  getGameSquaresGuest: publicProcedure.input(
+    z.object({
+      id: z.number(),
+      name: z.string().max(100).min(1),
+  })).query(async ({ ctx, input }) => {
+    
+    const userGame = await ctx.db.userBingoGame.findFirst({
+      where: { bingoGameId: input.id, userName: input.name },
       select: {
         squares: {
           select: {

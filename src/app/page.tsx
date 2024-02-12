@@ -5,36 +5,37 @@ import { getServerAuthSession } from "~/server/auth";
 import { api } from "~/trpc/server";
 import Header from "./header";
 import JoinButton from "./join-button";
+import JoinButtonGuest from "./join-button-guest";
 
 export default async function Home() {
   noStore();
   const session = await getServerAuthSession();
+  const signedIn = session !== null;
   return (
     <main className="">
       <Header />
       <div className="flex flex-col items-center justify-center mt-4 space-y-4">
-        <GameCounter />
-        { session ? <ListGames /> : null }
+        <GameCounter signedIn={signedIn} />
+        <ListGames signedIn={signedIn} />
       </div>
     </main>
   );
 }
 
-async function GameCounter() {
-  const session = await getServerAuthSession();
+async function GameCounter({signedIn}: {signedIn: boolean}) {
   const gameCount = await api.game.countGames.query();
 
   return (
     <div className="flex flex-col items-center">
-      <span>{gameCount} active game{gameCount !== 1 ? 's' : ''}. {session ? null : "Sign in to play!"}</span>
+      <span>{gameCount} active game{gameCount !== 1 ? 's' : ''}. {signedIn ? null : "Sign in to play or join as a guest!"}</span>
       {gameCount === 0 ? <span>Please ask the admin to create a game.</span> : null}
     </div>
   )
 }
 
-async function ListGames() {
+async function ListGames({signedIn}: {signedIn: boolean}) {
   const games = await api.game.listGames.query();
-  const myGames = await api.userBingo.listUserGames.query();
+  const myGames = signedIn ? await api.userBingo.listUserGames.query() : [];
   const joinable = games.filter(game => !myGames.some(myGame => myGame.bingoGameId === game.id));
 
   return (
@@ -50,7 +51,9 @@ async function ListGames() {
                   <div key={game.id}
                     className="space-x-2 container border rounded-sm p-2 bg-card">
                     <span>{game.title}</span>
-                    <JoinButton gameId={game.id} />
+                    {
+                      signedIn ? <JoinButton gameId={game.id} /> : <JoinButtonGuest gameId={game.id} />
+                    }
                   </div>
                 );
               })
